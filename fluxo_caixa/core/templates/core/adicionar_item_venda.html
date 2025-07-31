@@ -1,0 +1,85 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>Venda para {{ nota.cliente }}</h4>
+                <span class="badge bg-primary">Total: R$ {{ nota.total|intcomma }}</span>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="id_produto" class="form-label">Produto</label>
+                                {{ form.produto }}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="id_quantidade" class="form-label">Quantidade</label>
+                                {{ form.quantidade }}
+                            </div>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary">Adicionar</button>
+                        </div>
+                    </div>
+                </form>
+
+                <hr>
+
+                <h5>Itens da Venda</h5>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Produto</th>
+                            <th>Quantidade</th>
+                            <th>Preço Unitário</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in itens %}
+                        <tr>
+                            <td>{{ item.produto.nome }}</td>
+                            <td>{{ item.quantidade }}</td>
+                            <td>R$ {{ item.preco_unitario|intcomma }}</td>
+                            <td>R$ {{ item.subtotal|intcomma }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">Nenhum item adicionado</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer text-end">
+                <a href="{% url 'finalizar_venda' nota.id %}" class="btn btn-success">Finalizar Venda</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Produtos Disponíveis</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    {% for produto in produtos_disponiveis %}
+                    <a href="#" class="list-group-item list-group-item-action">
+                        {{ produto.nome }} (R$ {{ produto.preco|intcomma }})
+                        <span class="badge bg-primary rounded-pill float-end">{{ produto.quantidade }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

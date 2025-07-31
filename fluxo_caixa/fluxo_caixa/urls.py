@@ -1,0 +1,44 @@
+from django.contrib import admin
+from django.urls import path, include
+from django.contrib.auth import views as auth_views
+from core import views
+#from .views import editar_produto
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', views.dashboard, name='dashboard'),
+    path('movimentacoes/<str:tipo>/', views.lista_movimentacoes, name='lista_movimentacoes'),
+    path('entradas/', views.lista_movimentacoes, {'tipo': 'E'}, name='lista_movimentacoes'),
+    path('saidas/', views.lista_movimentacoes, {'tipo': 'S'}, name='lista_movimentacoes'),
+    #path('saidas/', views.lista_saidas, name='lista_saidas'),
+    path('movimentacao/adicionar/', views.adicionar_movimentacao, name='adicionar_movimentacao'),
+    path('movimentacao/editar/<int:pk>/', views.editar_movimentacao, name='editar_movimentacao'),
+    path('movimentacao/excluir/<int:pk>/', views.excluir_movimentacao, name='excluir_movimentacao'),
+    path('relatorios/', views.relatorios, name='relatorios'),
+    
+    path('estoque/', views.lista_produtos, name='estoque'),
+    path('produto/adicionar/', views.adicionar_produto, name='adicionar_produto'),
+    path('estoque/excluir/<int:id>/', views.excluir_produto, name='excluir_produto'),
+    
+    path('estoque/editar/<int:id>/',views.editar_produto , name='editar_produto'),
+    path('estoque/entrada/<int:id>/', views.entrada_estoque, name='entrada_estoque'),
+    path('estoque/historico/', views.historico_estoque, name='historico_estoque'),
+    path('venda/nova/', views.criar_nota_venda, name='criar_nota_venda'),
+    path('venda/<int:nota_id>/itens/', views.adicionar_item_venda, name='adicionar_item_venda'),
+    
+    path('venda/<int:nota_id>/finalizar/', views.finalizar_venda, name='finalizar_venda'),
+    
+    path('vendas/remover-item/<int:pk>/', views.remover_item_venda, name='remover_item_venda'),
+    
+    path('venda/recibo/<int:nota_id>/imprimir/', views.imprimir_recibo_venda, name='imprimir_recibo_venda'),
+
+    path('registrar/', views.register, name='register'),
+    path('alterar-senha/', views.change_password, name='change_password'),
+    path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
+    path('logout/', views.user_logout, name='logout'),
+
+    #path('categorias/', views.lista_categorias, name='lista_categorias'),
+    #path('categorias/adicionar/', views.adicionar_categoria, name='adicionar_categoria'),
+    #path('categorias/editar/<int:pk>/', views.editar_categoria, name='editar_categoria'),
+    #path('categorias/excluir/<int:pk>/', views.excluir_categoria, name='excluir_categoria'),
+]

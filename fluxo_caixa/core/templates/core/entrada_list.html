@@ -1,0 +1,93 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block title %}Lista de Entradas{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center bg-success text-white">
+        <h4 class="mb-0">
+            <i class="fas fa-sign-in-alt me-2"></i>Entradas Financeiras
+        </h4>
+        <a href="{% url 'adicionar_movimentacao' %}?tipo=E" class="btn btn-light">
+            <i class="fas fa-plus-circle me-1"></i> Nova Entrada
+        </a>
+    </div>
+    
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th>Data</th>
+                        
+                        <th>Valor</th>
+                        <th>Descrição</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entrada in movimentacoes %}
+                    <tr>
+                        <td>{{ entrada.data|date:"d/m/Y" }}</td>
+                        
+                        <td class="text-success fw-bold">R$ {{ entrada.valor|intcomma }}</td>
+                        <td>{{ entrada.descricao|truncatechars:30 }}</td>
+                        <td>
+                            <a href="{% url 'editar_movimentacao' entrada.id %}" class="btn btn-sm btn-warning" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'excluir_movimentacao' entrada.id %}" class="btn btn-sm btn-danger" title="Excluir"
+                               onclick="return confirm('Tem certeza que deseja excluir esta entrada?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            <i class="fas fa-info-circle me-2"></i>Nenhuma entrada registrada
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-group-divider">
+                <tr>
+                    <th colspan="1">Total</th>
+                    <th class="text-success">R$ {{ total|floatformat:2|intcomma }}</th>
+                    <th colspan="2"></th>
+                </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    
+    <div class="card-footer">
+        <div class="d-flex justify-content-between">
+            <div>
+                <span class="badge bg-primary">
+                    {{ movimentacoes|length }} registro(s)
+                </span>
+            </div>
+            <div>
+                <a href="{% url 'dashboard' %}" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i> Voltar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Adicione scripts JS personalizados se necessário
+document.addEventListener('DOMContentLoaded', function() {
+    // Exemplo: Tooltips do Bootstrap
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    tooltipTriggerList.map(function (element) {
+        return new bootstrap.Tooltip(element);
+    });
+});
+</script>
+{% endblock %}

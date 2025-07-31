@@ -1,0 +1,100 @@
+{% extends 'core/base.html' %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-header">Entradas (Mês)</div>
+            <div class="card-body">
+                <h2 class="card-title">R$ {{ entradas_mes|intcomma }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-danger mb-3">
+            <div class="card-header">Saídas (Mês)</div>
+            <div class="card-body">
+                <h2 class="card-title">R$ {{ saidas_mes|intcomma }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-header">Saldo (Mês)</div>
+            <div class="card-body">
+                <h2 class="card-title">R$ {{ saldo_mes|intcomma }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>Últimas Movimentações</span>
+                    <div>
+                        <a href="{% url 'adicionar_movimentacao' %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus"></i> Nova
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Descrição</th>
+                                <th>Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mov in ultimas_movimentacoes %}
+                            <tr>
+                                <td>{{ mov.data|date:"d/m/Y"}}</td>
+                                <td>{{ mov.descricao }}</td>
+                                
+                                <td class="{% if mov.tipo == 'E' %}text-success{% else %}text-danger{% endif %}">
+                                    R$ {{ mov.valor|intcomma }}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center">Nenhuma movimentação registrada</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                Produtos com Baixo Estoque
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for produto in produtos_baixo_estoque %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ produto.nome }}
+                        <span class="badge bg-danger rounded-pill">{{ produto.quantidade }}</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-center">Nenhum produto com estoque baixo</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

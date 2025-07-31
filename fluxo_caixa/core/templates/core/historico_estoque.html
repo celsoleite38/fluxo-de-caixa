@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4><i class="bi bi-clock-history"></i> Histórico de Entradas no Estoque</h4>
+    </div>
+    <div class="card-body">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Produto</th>
+                    <th>Quantidade</th>
+                    <th>Usuário</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for movimento in movimentos %}
+                <tr>
+                    <td>{{ movimento.data|date:"d/m/Y H:i" }}</td>
+                    <td>{{ movimento.produto.nome }}</td>
+                    <td class="text-success">+{{ movimento.quantidade }}</td>
+                    <td>{{ movimento.usuario.username }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center">Nenhuma entrada registrada</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="mt-3">
+            <a href="{% url 'estoque' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar para o Estoque
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

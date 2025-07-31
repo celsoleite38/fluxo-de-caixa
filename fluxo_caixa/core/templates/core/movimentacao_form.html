@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h4>{% if form.instance.id %}Editar{% else %}Adicionar{% endif %} Movimentação</h4>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="id_tipo" class="form-label">Tipo</label>
+                {{ form.tipo }}
+            </div>
+           
+            <div class="mb-3">
+                <label for="id_valor" class="form-label">Valor</label>
+                {{ form.valor }}
+            </div>
+            <div class="mb-3">
+                <label for="id_descricao" class="form-label">Descrição</label>
+                {{ form.descricao }}
+            </div>
+            <div class="mb-3">
+                <label for="id_data" class="form-label">Data</label>
+                {{ form.data }}
+            </div>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+            <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancelar</button>
+        </form>
+    </div>
+    {% if form.errors %}
+    <div class="alert alert-danger">
+        {% for field, errors in form.errors.items %}
+            {% for error in errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+        {% endfor %}
+    </div>
+{% endif %}
+</div>
+{% endblock %}
