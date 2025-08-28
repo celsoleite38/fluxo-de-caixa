@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib import messages
 from django.db.models import Sum
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from .forms import CategoriaForm, EntradaEstoqueForm, UsuarioForm, CustomPasswordChangeForm, MovimentacaoForm, ProdutoForm, NotaVendaForm, ItemVendaForm, CategoriaForm
 from .models import ItemVenda, Movimentacao, Categoria, Produto, NotaVenda, MovimentoEstoque
 from django.db.models.signals import post_save
@@ -24,10 +24,27 @@ import uuid
 
 @login_required
 def dashboard(request):
-    hoje = datetime.now().date()
+    hoje = date.today()
     inicio_mes = hoje.replace(day=1)
     
-    # Entradas e saídas do mês
+    # Movimentações do DIA (adicionado)
+    movimentacoes_hoje = Movimentacao.objects.filter(
+        usuario=request.user,
+        data=hoje
+    ).order_by('-data')
+    
+    # Totais do DIA (adicionado)
+    entradas_hoje = movimentacoes_hoje.filter(tipo='E').aggregate(
+        total=Sum('valor')
+    )['total'] or 0
+    
+    saidas_hoje = movimentacoes_hoje.filter(tipo='S').aggregate(
+        total=Sum('valor')
+    )['total'] or 0
+    
+    saldo_hoje = entradas_hoje - saidas_hoje
+    
+    # Entradas e saídas do mês (mantido)
     entradas_mes = Movimentacao.objects.filter(
         tipo='E', 
         data__gte=inicio_mes,
@@ -42,20 +59,35 @@ def dashboard(request):
     
     saldo_mes = entradas_mes - saidas_mes
     
-    # Últimas movimentações
-    ultimas_movimentacoes = Movimentacao.objects.filter(
+    # Vendas do DIA (adicionado - se aplicável)
+    vendas_hoje = NotaVenda.objects.filter(
         usuario=request.user,
-        data__gte=hoje - timedelta(days=1)
-    ).order_by('-data' )[:10]
+        data=hoje
+    )
     
-    # Produtos com baixo estoque
+    total_vendas_hoje = vendas_hoje.aggregate(total=Sum('total'))['total'] or 0
+    qtd_vendas_hoje = vendas_hoje.count()
+    
+    # Produtos com baixo estoque (mantido)
     produtos_baixo_estoque = Produto.objects.filter(quantidade__lte=5)
     
     context = {
+        # Novos dados do dia
+        'movimentacoes_hoje': movimentacoes_hoje,
+        'entradas_hoje': entradas_hoje,
+        'saidas_hoje': saidas_hoje,
+        'saldo_hoje': saldo_hoje,
+        'vendas_hoje': vendas_hoje,
+        'total_vendas_hoje': total_vendas_hoje,
+        'qtd_vendas_hoje': qtd_vendas_hoje,
+        'data_hoje': hoje,
+        
+        # Dados do mês (mantidos)
         'entradas_mes': entradas_mes,
         'saidas_mes': saidas_mes,
         'saldo_mes': saldo_mes,
-        'ultimas_movimentacoes': ultimas_movimentacoes,
+        
+        # Outros dados
         'produtos_baixo_estoque': produtos_baixo_estoque,
     }
     return render(request, 'core/dashboard.html', context)

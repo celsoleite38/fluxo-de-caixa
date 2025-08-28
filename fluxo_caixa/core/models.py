@@ -38,6 +38,7 @@ class Movimentacao(models.Model):
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     descricao = models.TextField()
     data = models.DateField()
+    hora = models.TimeField(auto_now_add=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)

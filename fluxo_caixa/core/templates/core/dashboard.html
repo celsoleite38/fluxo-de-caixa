@@ -28,54 +28,89 @@
             <div class="card-body">
                 <h2 class="card-title">R$ {{ saldo_mes|intcomma }}</h2>
             </div>
+            
+        </div>
+        
+    </div>
+    
+</div>
+
+
+<!-- Movimentações do Dia -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5>📊 Movimentações de Hoje ({{ data_hoje|date:"d/m/Y" }})</h5>
+    </div>
+    <div class="card-body">
+        <!-- Resumo do Dia -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center py-3">
+                        <h6>Entradas Hoje</h6>
+                        <h4>R$ {{ entradas_hoje|floatformat:2 }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-danger text-white">
+                    <div class="card-body text-center py-3">
+                        <h6>Saídas Hoje</h6>
+                        <h4>R$ {{ saidas_hoje|floatformat:2 }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body text-center py-3">
+                        <h6>Saldo Hoje</h6>
+                        <h4>R$ {{ saldo_hoje|floatformat:2 }}</h4>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- Lista de Movimentações do Dia -->
+        <h6>Últimas Movimentações de Hoje:</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Hora</th>
+                        <th>Descrição</th>
+                        <th>Valor</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mov in movimentacoes_hoje %}
+                    <tr>
+                        <td>{{ mov.hora|time:"H:i" }}</td>
+                        <td>{{ mov.descricao }}</td>
+                        <td class="{% if mov.tipo == 'E' %}text-success{% else %}text-danger{% endif %}">
+                            R$ {{ mov.valor|floatformat:2 }}
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if mov.tipo == 'E' %}success{% else %}danger{% endif %}">
+                                {{ mov.get_tipo_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">
+                            Nenhuma movimentação hoje
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
 <div class="row">
-    <div class="col-md-8">
-        <div class="card mb-4">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <span>Últimas Movimentações</span>
-                    <div>
-                        <a href="{% url 'adicionar_movimentacao' %}" class="btn btn-sm btn-primary">
-                            <i class="fas fa-plus"></i> Nova
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Data</th>
-                                <th>Descrição</th>
-                                <th>Valor</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for mov in ultimas_movimentacoes %}
-                            <tr>
-                                <td>{{ mov.data|date:"d/m/Y"}}</td>
-                                <td>{{ mov.descricao }}</td>
-                                
-                                <td class="{% if mov.tipo == 'E' %}text-success{% else %}text-danger{% endif %}">
-                                    R$ {{ mov.valor|intcomma }}
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="4" class="text-center">Nenhuma movimentação registrada</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
     
     <div class="col-md-4">
         <div class="card mb-4">
@@ -96,5 +131,6 @@
             </div>
         </div>
     </div>
+    
 </div>
 {% endblock %}
