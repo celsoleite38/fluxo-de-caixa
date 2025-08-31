@@ -1,10 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import Usuario
+from .models import User
 
 class CustomUserAdmin(UserAdmin):
-    model = Usuario
-    list_display = ('username', 'email', 'first_name', 'last_name', 'telefone', 'is_staff')
+    model = User
+    list_display = ('username', 'email', 'name', 'telefone', 'is_staff')
     list_filter = ('is_staff', 'is_superuser', 'is_active')
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
@@ -23,4 +23,3 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ('username', 'first_name', 'last_name', 'email', 'telefone')
     ordering = ('username',)
 
-admin.site.register(Usuario, CustomUserAdmin)

@@ -6,6 +6,7 @@ from core import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('accounts/', include('django.contrib.auth.urls')),
     path('', views.dashboard, name='dashboard'),
     path('movimentacoes/<str:tipo>/', views.lista_movimentacoes, name='lista_movimentacoes'),
     path('entradas/', views.lista_movimentacoes, {'tipo': 'E'}, name='lista_movimentacoes'),
@@ -34,14 +35,16 @@ urlpatterns = [
 
     path("relatorios/imprimir_entradas/", views.imprimir_entradas, name="imprimir_entradas"),
     path("relatorios/imprimir_saidas/", views.imprimir_saidas, name="imprimir_saidas"),
+    
+    path('autenticacao/', include('autenticacao.urls')),
+    path('password_change/', auth_views.PasswordChangeView.as_view(template_name='registration/password_change_form.html'), name='password_change'),
+    path('password_change/done/', auth_views.PasswordChangeDoneView.as_view(template_name='registration/password_change_done.html'), name='password_change_done'),
+    path('accounts/register/', views.register, name='register'),
 
 
     
 
-    path('registrar/', views.register, name='register'),
-    path('alterar-senha/', views.change_password, name='change_password'),
-    path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
-    path('logout/', views.user_logout, name='logout'),
+    
 
     #path('categorias/', views.lista_categorias, name='lista_categorias'),
     #path('categorias/adicionar/', views.adicionar_categoria, name='adicionar_categoria'),

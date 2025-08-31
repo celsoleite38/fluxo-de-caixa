@@ -1,18 +1,13 @@
-# Create your models here.
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.contrib.auth import get_user_model
-#from .models import ItemVenda
+from django.contrib.auth.models import User
 
-class Usuario(AbstractUser):
-    telefone = models.CharField(max_length=15, blank=True, null=True)
-    
-    def __str__(self):
-        return self.get_full_name() or self.username
+
 
 class Categoria(models.Model):
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
     nome = models.CharField(max_length=100)
     tipo = models.CharField(max_length=1, choices=(('E', 'Entrada'), ('S', 'Saída')))
     
@@ -20,7 +15,7 @@ class Categoria(models.Model):
         return self.nome
 
 class Produto(models.Model):
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
     nome = models.CharField(max_length=100)
     descricao = models.TextField(blank=True, null=True)
     preco = models.DecimalField(max_digits=10, decimal_places=2)
@@ -42,7 +37,7 @@ class Movimentacao(models.Model):
     hora = models.TimeField(auto_now_add=True)
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
     
     class Meta:
         ordering = ['-data']
@@ -75,7 +70,7 @@ class NotaVenda(models.Model):
     forma_pagamento = models.CharField(max_length=20, choices=FORMA_PAGAMENTO_CHOICES, blank=False, null=False)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='aberta')
     data = models.DateTimeField(auto_now_add=True)
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
     
     def __str__(self):
         return f"Venda #{self.id} - {self.cliente}"
@@ -118,7 +113,7 @@ class MovimentoEstoque(models.Model):
     quantidade = models.IntegerField()
     tipo = models.CharField(max_length=7, choices=TIPO_CHOICES)
     data = models.DateTimeField(auto_now_add=True)
-    usuario = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True)
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     
     def __str__(self):
         return f"{self.produto.nome} - {self.quantidade} ({self.tipo})"

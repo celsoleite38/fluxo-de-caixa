@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
-from .models import Usuario, Movimentacao, Categoria, Produto, NotaVenda, ItemVenda
+from .models import User, Movimentacao, Categoria, Produto, NotaVenda, ItemVenda
+
 
 class UsuarioForm(UserCreationForm):
     telefone = forms.CharField(max_length=15, required=False)
@@ -8,7 +9,7 @@ class UsuarioForm(UserCreationForm):
     password2 = forms.CharField(label="Confirmação de Senha", widget=forms.PasswordInput)
     
     class Meta:
-        model = Usuario
+        model = User
         fields = ['username', 'first_name', 'email', 'telefone', 'password1', 'password2']
 
 class CustomPasswordChangeForm(PasswordChangeForm):
@@ -72,9 +73,7 @@ class CategoriaForm(forms.ModelForm):
             instance.save()
         return instance
     
-from django import forms
-from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
-from .models import Usuario, Movimentacao, Categoria, Produto, NotaVenda, ItemVenda
+
 
 class UsuarioForm(UserCreationForm):
     telefone = forms.CharField(max_length=15, required=False)
@@ -82,7 +81,7 @@ class UsuarioForm(UserCreationForm):
     password2 = forms.CharField(label="Confirmação de Senha", widget=forms.PasswordInput)
     
     class Meta:
-        model = Usuario
+        model = User
         fields = ['username', 'first_name', 'email', 'telefone', 'password1', 'password2']
 
 class CustomPasswordChangeForm(PasswordChangeForm):

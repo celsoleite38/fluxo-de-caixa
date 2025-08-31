@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "core/base.html" %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -29,7 +29,7 @@
                     
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary">Entrar</button>
-                        <a href="{% url 'change_password' %}" class="btn btn-link">Esqueceu a senha?</a>
+                        <a href="{% url 'password_change' %}" class="btn btn-link">Esqueceu a senha?</a>
                     </div>
                 </form>
             </div>
