@@ -10,7 +10,7 @@
         <div class="card text-white bg-success mb-3">
             <div class="card-header">Entradas (Mês)</div>
             <div class="card-body">
-                <h2 class="card-title">R$ {{ entradas_mes|intcomma }}</h2>
+                <h2 class="card-title">R$ {{ entradas_mes|floatformat:2 }}</h2>
             </div>
         </div>
     </div>
@@ -18,7 +18,7 @@
         <div class="card text-white bg-danger mb-3">
             <div class="card-header">Saídas (Mês)</div>
             <div class="card-body">
-                <h2 class="card-title">R$ {{ saidas_mes|intcomma }}</h2>
+                <h2 class="card-title">R$ {{ saidas_mes|floatformat:2 }}</h2>
             </div>
         </div>
     </div>
@@ -26,13 +26,17 @@
         <div class="card text-white bg-primary mb-3">
             <div class="card-header">Saldo (Mês)</div>
             <div class="card-body">
-                <h2 class="card-title">R$ {{ saldo_mes|intcomma }}</h2>
+                <h2 class="card-title">R$ {{ saldo_mes|floatformat:2 }}</h2>
             </div>
             
         </div>
         
     </div>
+    <div class="row">
     
+    
+    
+</div>
 </div>
 
 
@@ -67,8 +71,11 @@
                         <h4>R$ {{ saldo_hoje|floatformat:2 }}</h4>
                     </div>
                 </div>
+                
             </div>
-            
+            <div class="col-md-4">
+        
+    </div>
         </div>
 
         <!-- Lista de Movimentações do Dia -->
@@ -109,11 +116,7 @@
         </div>
     </div>
 </div>
-
-<div class="row">
-    
-    <div class="col-md-4">
-        <div class="card mb-4">
+<div class="card mb-4">
             <div class="card-header">
                 Produtos com Baixo Estoque
             </div>
@@ -130,7 +133,5 @@
                 </ul>
             </div>
         </div>
-    </div>
-    
-</div>
+
 {% endblock %}

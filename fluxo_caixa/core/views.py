@@ -1,5 +1,6 @@
 
 # Create your views here.
+from django.db.models.aggregates import Count
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout, update_session_auth_hash
@@ -18,7 +19,8 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.forms import PasswordChangeForm
 #from dateutil.relativedelta import relativedelta
 from django.template.loader import render_to_string
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from decimal import Decimal
 
 import uuid
 
@@ -153,19 +155,23 @@ def excluir_movimentacao(request, pk):
 def relatorios(request):
     # Filtros para Movimentações
     movimentacoes = Movimentacao.objects.filter(usuario=request.user)
+    entradas = movimentacoes.filter(tipo='E').order_by('-data')
+    saidas = movimentacoes.filter(tipo='S').order_by('-data')
     
-    # Filtros para Vendas (Novo)
-    vendas = NotaVenda.objects.filter(usuario=request.user).prefetch_related('itemvenda_set')
+    # Filtros para Vendas - APENAS VENDAS FINALIZADAS
+    vendas = NotaVenda.objects.filter(usuario=request.user, status='finalizada')
     
-    # Tratamento dos filtros (compartilhado)
+    # Tratamento dos filtros
     data_inicio = request.GET.get('data_inicio')
     data_fim = request.GET.get('data_fim')
+    forma_pagamento = request.GET.get('forma_pagamento', '')
     
+    # Aplicar filtros de data
     if data_inicio:
         try:
             data_inicio = datetime.strptime(data_inicio, '%Y-%m-%d').date()
             movimentacoes = movimentacoes.filter(data__gte=data_inicio)
-            vendas = vendas.filter(data__gte=data_inicio)  # Novo
+            vendas = vendas.filter(data__gte=data_inicio)
         except ValueError:
             messages.error(request, "Data início inválida")
     
@@ -173,35 +179,97 @@ def relatorios(request):
         try:
             data_fim = datetime.strptime(data_fim, '%Y-%m-%d').date()
             movimentacoes = movimentacoes.filter(data__lte=data_fim)
-            vendas = vendas.filter(data__lte=data_fim)  # Novo
+            vendas = vendas.filter(data__lte=data_fim)
         except ValueError:
             messages.error(request, "Data fim inválida")
+
+    # Aplicar filtro de forma de pagamento
+    if forma_pagamento:
+        vendas = vendas.filter(forma_pagamento=forma_pagamento)
 
     # Cálculos para Movimentações
     total_entradas = movimentacoes.filter(tipo='E').aggregate(total=Sum('valor'))['total'] or 0
     total_saidas = movimentacoes.filter(tipo='S').aggregate(total=Sum('valor'))['total'] or 0
     saldo = total_entradas - total_saidas
     
-    # Cálculos para Vendas (Novo)
-    total_vendas = vendas.aggregate(total=Sum('total'))['total'] or 0
+    # Cálculos para Vendas - CORRIGIDO
+    # Usar total_com_desconto para o valor real recebido
+    total_vendas = vendas.aggregate(total=Sum('total_com_desconto'))['total'] or 0
+    total_vendas_bruto = vendas.aggregate(total=Sum('total'))['total'] or 0
+    total_descontos = total_vendas_bruto - total_vendas
     qtd_vendas = vendas.count()
+    
+    # Estatísticas por forma de pagamento - CORRIGIDO
+    # Primeiro pegar todas as vendas COM forma de pagamento
+    vendas_com_forma = vendas.exclude(forma_pagamento__isnull=True)
+    vendas_por_forma = vendas_com_forma.values('forma_pagamento').annotate(
+        total=Sum('total_com_desconto'),
+        quantidade=Count('id')
+    ).order_by('-total')
+    
+    # Converter para lista para manipulação
+    vendas_por_forma_list = list(vendas_por_forma)
+    
+    # Verificar vendas SEM forma de pagamento
+    vendas_sem_forma = vendas.filter(forma_pagamento__isnull=True)
+    if vendas_sem_forma.exists():
+        total_sem_forma = vendas_sem_forma.aggregate(
+            total=Sum('total_com_desconto'),
+            quantidade=Count('id')
+        )
+        if total_sem_forma['quantidade'] > 0:
+            vendas_por_forma_list.append({
+                'forma_pagamento': None,
+                'total': total_sem_forma['total'] or 0,
+                'quantidade': total_sem_forma['quantidade'] or 0
+            })
     
     context = {
         'movimentacoes': movimentacoes.order_by('-data'),
-        'vendas': vendas.order_by('-data'),  # Novo
+        'entradas': entradas,
+        'saidas': saidas,  
+        'vendas': vendas.order_by('-data'),
         'total_entradas': total_entradas,
         'total_saidas': total_saidas,
-        'total_vendas': total_vendas,  # Novo
-        'qtd_vendas': qtd_vendas,      # Novo
+        'total_vendas': total_vendas,
+        'total_descontos': total_descontos,
+        'qtd_vendas': qtd_vendas,
         'saldo': saldo,
         'data_inicio': request.GET.get('data_inicio', ''),
         'data_fim': request.GET.get('data_fim', ''),
+        'forma_pagamento': forma_pagamento,
+        'vendas_por_forma_pagamento': vendas_por_forma_list,
+        'FORMAS_PAGAMENTO': NotaVenda.FORMA_PAGAMENTO_CHOICES,
     }
     return render(request, 'core/relatorios.html', context)
 
+# caixa/views.py
+
+
+def imprimir_entradas(request):
+    # Use Movimentacao filtrando por tipo 'E' (Entrada)
+    entradas = Movimentacao.objects.filter(tipo='E', usuario=request.user).order_by("-data")
+    total = entradas.aggregate(total=Sum('valor'))['total'] or 0
+    
+    return render(request, "core/imprimir_entradas.html", {
+        "entradas": entradas,
+        "total": total
+    })
+
+def imprimir_saidas(request):
+    # Use Movimentacao filtrando por tipo 'S' (Saída)
+    saidas = Movimentacao.objects.filter(tipo='S', usuario=request.user).order_by("-data")
+    total = saidas.aggregate(total=Sum('valor'))['total'] or 0
+    
+    return render(request, "core/imprimir_saidas.html", {
+        "saidas": saidas,
+        "total": total
+    })
+
+
 @login_required
 def lista_produtos(request):
-    produtos = Produto.objects.all()
+    produtos = Produto.objects.filter(usuario=request.user)
     return render(request, 'core/estoque.html', {'produtos': produtos})
 
 @login_required
@@ -209,18 +277,20 @@ def adicionar_produto(request):
     if request.method == 'POST':
         form = ProdutoForm(request.POST)
         if form.is_valid():
-            form.save()
+            produto = form.save(commit=False)
+            produto.usuario = request.user
+            produto.save()
             messages.success(request, 'Produto adicionado com sucesso!')
             return redirect('estoque')
     else:
-        form = ProdutoForm()
+        form = ProdutoForm(usuario=request.user)
     
     return render(request, 'core/produto_form.html', {'form': form})
 
 @login_required
 @require_POST  # Garante que só aceita requisições POST
 def excluir_produto(request, id):
-    produto = get_object_or_404(Produto, id=id)
+    produto = get_object_or_404(Produto, id=id, usuario=request.user)
     
     try:
         produto.delete()
@@ -233,7 +303,7 @@ def excluir_produto(request, id):
 
 @login_required
 def editar_produto(request, id):
-    produto = get_object_or_404(Produto, id=id)
+    produto = get_object_or_404(Produto, id=id, usuario=request.user)
     
     if request.method == 'POST':
         form = ProdutoForm(request.POST, instance=produto)
@@ -248,7 +318,7 @@ def editar_produto(request, id):
 
 @login_required
 def entrada_estoque(request, id):
-    produto = get_object_or_404(Produto, id=id)
+    produto = get_object_or_404(Produto, id=id, usuario=request.user)
     
     if request.method == 'POST':
         form = EntradaEstoqueForm(request.POST)
@@ -279,11 +349,11 @@ def entrada_estoque(request, id):
 
 @login_required
 def historico_estoque(request):
-    # Filtra apenas as entradas (ou todos os movimentos)
-    movimentos = MovimentoEstoque.objects.filter(tipo='entrada').order_by('-data')
     
-    # Ou para ver todos os movimentos (entradas e saídas):
-    # movimentos = MovimentoEstoque.objects.all().order_by('-data')
+    movimentos = MovimentoEstoque.objects.filter(
+        usuario=request.user,
+        produto__usuario=request.user  
+    ).order_by('-data')
     
     return render(request, 'core/historico_estoque.html', {
         'movimentos': movimentos
@@ -310,14 +380,19 @@ def adicionar_item_venda(request, nota_id):
     nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
     
     if request.method == 'POST':
-        form = ItemVendaForm(request.POST)
+        form = ItemVendaForm(request.POST, usuario=request.user)
         if form.is_valid():
             item = form.save(commit=False)
             item.nota = nota
             item.preco_unitario = item.produto.preco
+            
+            if item.produto.quantidade < item.quantidade:
+                messages.error(request, f'Estoque insuficiente para {item.produto.nome}. Disponível: {item.produto.quantidade}')
+                return redirect('adicionar_item_venda', nota_id=nota.id)
+            
             item.save()
             
-            # Atualizar estoque
+            
             produto = item.produto
             produto.quantidade -= item.quantidade
             produto.save()
@@ -329,18 +404,17 @@ def adicionar_item_venda(request, nota_id):
             messages.success(request, 'Item adicionado com sucesso!')
             return redirect('adicionar_item_venda', nota_id=nota.id)
     else:
-        form = ItemVendaForm()
+        form = ItemVendaForm(usuario=request.user)
     
     # Carregar todos os produtos disponíveis para o select
-    produtos = Produto.objects.filter(quantidade__gt=0)
+    produtos = Produto.objects.filter(usuario=request.user, quantidade__gt=0)
     
-    # Renomear para 'itens_venda' para evitar conflito com o loop do template
     itens_venda = nota.itemvenda_set.select_related('produto').all()
     
     return render(request, 'core/nota_venda.html', {
         'nota': nota,
         'form': form,
-        'itens': itens_venda,  # Agora usando 'itens' que o template espera
+        'itens': itens_venda,  
         'produtos': produtos,
     })
 
@@ -349,17 +423,164 @@ def adicionar_item_venda(request, nota_id):
 def finalizar_venda(request, nota_id):
     nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
     
-    Movimentacao.objects.create(
-        tipo='E',
-        valor=nota.total,
-        descricao=f"Venda para {nota.cliente}",
-        data=datetime.now().date(),
-        usuario=request.user
-    )
     
-    messages.success(request, 'Venda finalizada com sucesso!')
+    itens = nota.itemvenda_set.all()
+    if not itens.exists():
+        messages.error(request, 'Não é possível finalizar uma venda sem itens!')
+        return redirect('nota_venda', nota_id=nota_id)
+    
+    for item in itens:
+        if item.produto.quantidade < item.quantidade:
+            messages.error(request, f'Estoque insuficiente para {item.produto.nome}. Disponível: {item.produto.quantidade}, Solicitado: {item.quantidade}')
+            return redirect('adicionar_item_venda', nota_id=nota_id)
+    
+    if request.method == 'POST':
+        # Processar formulário de pagamento
+        forma_pagamento = request.POST.get('forma_pagamento')
+        desconto_percentual = request.POST.get('desconto_percentual', '0')
+        desconto_valor = request.POST.get('desconto_valor', '0')
+        
+        # Validar forma de pagamento
+        if not forma_pagamento:
+            messages.error(request, 'Selecione uma forma de pagamento!')
+            return render(request, 'finalizar_venda.html', {
+                'nota': nota,
+                'itens': itens
+            })
+        
+        # Converter para Decimal
+        try:
+            desconto_percentual = Decimal(desconto_percentual)
+            desconto_valor = Decimal(desconto_valor)
+        except (ValueError, TypeError):
+            desconto_percentual = Decimal(0)
+            desconto_valor = Decimal(0)
+        
+        # Calcular desconto final
+        if desconto_percentual > 0:
+            desconto_final = (nota.total * desconto_percentual) / 100
+        else:
+            desconto_final = desconto_valor
+        
+        # Validar desconto
+        if desconto_final > nota.total:
+            messages.error(request, 'Desconto não pode ser maior que o total da venda!')
+            return render(request, 'finalizar_venda.html', {
+                'nota': nota,
+                'itens': itens
+            })
+        
+        # Atualizar nota
+        nota.desconto = desconto_final
+        nota.total_com_desconto = nota.total - desconto_final
+        nota.forma_pagamento = forma_pagamento
+        nota.status = 'finalizada'
+        nota.save()
+        
+        for item in itens:
+            produto = item.produto
+            produto.quantidade -= item.quantidade
+            produto.save()
+            
+            # Registrar movimento de saída de estoque
+            MovimentoEstoque.objects.create(
+                produto=produto,
+                quantidade=item.quantidade,
+                tipo='saida',
+                usuario=request.user
+            )
+        
+        # Criar movimentação de caixa com valor líquido (com desconto)
+        Movimentacao.objects.create(
+            tipo='E',
+            valor=nota.total_com_desconto,
+            descricao=f"Venda #{nota.id} para {nota.cliente} - {forma_pagamento}",
+            data=datetime.now().date(),
+            usuario=request.user
+        )
+        
+        # Atualizar estoque dos produtos
+        for item in itens:
+            produto = item.produto
+            produto.quantidade -= item.quantidade
+            produto.save()
+        
+        messages.success(request, 'Venda finalizada com sucesso!')
+        return redirect('dashboard')
+    
+    # Se for GET, mostrar formulário de pagamento
+    return render(request, 'core/finalizar_venda.html', {
+        'nota': nota,
+        'itens': itens
+    })
+
+@login_required
+def cancelar_venda(request, nota_id):
+    nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
+    
+    if nota.status == 'finalizada':
+        messages.error(request, 'Não é possível cancelar uma venda já finalizada!')
+        return redirect('dashboard')
+    
+    # Deletar a nota de venda (os itens serão deletados em cascade)
+    nota.delete()
+    
+    messages.success(request, 'Venda cancelada com sucesso!')
     return redirect('dashboard')
 
+
+@login_required
+def aplicar_desconto_ajax(request):
+    if request.method == 'POST':
+        nota_id = request.POST.get('nota_id')
+        tipo_desconto = request.POST.get('tipo_desconto')
+        valor_desconto = request.POST.get('valor_desconto')
+        
+        if not all([nota_id, tipo_desconto, valor_desconto]):
+            return JsonResponse({'success': False, 'error': 'Dados incompletos'})
+        
+        try:
+            nota = get_object_or_404(NotaVenda, id=nota_id, usuario=request.user)
+            valor_desconto = Decimal(valor_desconto)
+            
+            if tipo_desconto == 'percentual':
+                desconto = (nota.total * valor_desconto) / 100
+            else:  # valor
+                desconto = valor_desconto
+            
+            # Validar desconto
+            if desconto > nota.total:
+                return JsonResponse({
+                    'success': False, 
+                    'error': 'Desconto não pode ser maior que o total'
+                })
+            
+            total_com_desconto = nota.total - desconto
+            
+            return JsonResponse({
+                'success': True,
+                'desconto': str(desconto.quantize(Decimal('0.01'))),
+                'total_com_desconto': str(total_com_desconto.quantize(Decimal('0.01')))
+            })
+            
+        except (ValueError, TypeError) as e:
+            return JsonResponse({'success': False, 'error': 'Valor inválido'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': 'Erro interno'})
+    
+    return JsonResponse({'success': False, 'error': 'Método não permitido'})
+
+# views.py
+@login_required
+def ver_nota_venda(request, nota_id):
+    nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
+    itens = nota.itemvenda_set.all()
+    
+    return render(request, 'nota_venda.html', {
+        'nota': nota,
+        'itens': itens,
+        'produtos': Produto.objects.all()  # ou sua query de produtos
+    })
 
 
 @login_required

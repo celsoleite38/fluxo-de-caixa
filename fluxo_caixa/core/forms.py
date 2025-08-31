@@ -127,6 +127,18 @@ class ProdutoForm(forms.ModelForm):
     class Meta:
         model = Produto
         fields = ['nome', 'descricao', 'preco', 'quantidade']
+    
+    def __init__(self, *args, **kwargs):
+        self.usuario = kwargs.pop('usuario', None)
+        super().__init__(*args, **kwargs)
+    
+    def save(self, commit=True):
+        produto = super().save(commit=False)
+        if self.usuario:
+            produto.usuario = self.usuario
+        if commit:
+            produto.save()
+        return produto
 
 class NotaVendaForm(forms.ModelForm):
     class Meta:
@@ -137,6 +149,17 @@ class ItemVendaForm(forms.ModelForm):
     class Meta:
         model = ItemVenda
         fields = ['produto', 'quantidade']
+        
+    def __init__(self, *args, **kwargs):
+        self.usuario = kwargs.pop('usuario', None)
+        super().__init__(*args, **kwargs)
+        
+        # Filtra os produtos apenas do usuário logado
+        if self.usuario:
+            self.fields['produto'].queryset = Produto.objects.filter(
+                usuario=self.usuario, 
+                quantidade__gt=0
+            )
 
 class EntradaEstoqueForm(forms.Form):
     quantidade = forms.IntegerField(

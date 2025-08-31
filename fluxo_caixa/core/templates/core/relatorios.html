@@ -2,308 +2,392 @@
 {% load humanize %}
 
 {% block content %}
-<div class="card mb-4">
+<div class="card">
     <div class="card-header">
-        <h4>Relatórios</h4>
+        <div class="d-flex justify-content-between align-items-center">
+            <h4><i class="fas fa-chart-bar me-2"></i> Relatórios</h4>
+            <button onclick="imprimirRelatorioAtivo()" class="btn btn-primary no-print">
+                <i class="fas fa-print me-1"></i>Imprimir
+            </button>
+        </div>
         
+        <!-- Menu de Navegação entre Relatórios -->
+        <ul class="nav nav-tabs card-header-tabs mt-3" id="relatoriosTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="financeiro-tab" data-bs-toggle="tab" 
+                        data-bs-target="#financeiro" type="button" role="tab" aria-controls="financeiro" 
+                        aria-selected="true">
+                    <i class="fas fa-money-bill-wave me-2"></i>Financeiro
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pagamento-tab" data-bs-toggle="tab" 
+                        data-bs-target="#pagamento" type="button" role="tab" aria-controls="pagamento" 
+                        aria-selected="false">
+                    <i class="fas fa-credit-card me-2"></i>Forma Pagamento
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="movimentacoes-tab" data-bs-toggle="tab" 
+                        data-bs-target="#movimentacoes" type="button" role="tab" aria-controls="movimentacoes" 
+                        aria-selected="false">
+                    <i class="fas fa-exchange-alt me-2"></i>Movimentações
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="vendas-tab" data-bs-toggle="tab" 
+                        data-bs-target="#vendas" type="button" role="tab" aria-controls="vendas" 
+                        aria-selected="false">
+                    <i class="fas fa-shopping-cart me-2"></i>Vendas
+                </button>
+            </li>
+        </ul>
     </div>
-    <button onclick="imprimirAreaEspecifica()" class="btn btn-primary no-print">
-    <i class="fas fa-print"></i> Imprimir Relatório
-    </button>
+    
     <div class="card-body">
+        <!-- Filtros Comuns -->
         <form method="get" class="mb-4">
             <div class="row">
-                   <div class="col-md-2">
-                <label for="data_inicio" class="form-label">Data Início</label>
-                <input type="date" name="data_inicio" id="data_inicio" class="form-control" 
-                    value="{{ data_inicio }}">
-            </div>
-            <div class="col-md-2">
-                <label for="data_fim" class="form-label">Data Fim</label>
-                <input type="date" name="data_fim" id="data_fim" class="form-control"
-                    value="{{ data_fim }}">
-            </div>
-
-                <div class="col-md-2">
-                    <label for="periodo" class="form-label">Período</label>
-                    <select name="periodo" id="periodo" class="form-select">
-                        <option value="">Personalizado</option>
-                        <option value="semana" {% if periodo_selecionado == 'semana' %}selected{% endif %}>Última Semana</option>
-                        <option value="mes" {% if periodo_selecionado == 'mes' %}selected{% endif %}>Este Mês</option>
-                        <option value="ano" {% if periodo_selecionado == 'ano' %}selected{% endif %}>Este Ano</option>
+                <div class="col-md-3">
+                    <label for="data_inicio" class="form-label">Data Início</label>
+                    <input type="date" name="data_inicio" id="data_inicio" class="form-control" 
+                           value="{{ data_inicio }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="data_fim" class="form-label">Data Fim</label>
+                    <input type="date" name="data_fim" id="data_fim" class="form-control"
+                           value="{{ data_fim }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="forma_pagamento" class="form-label">Forma de Pagamento</label>
+                    <select name="forma_pagamento" id="forma_pagamento" class="form-select">
+                        <option value="">Todas as formas</option>
+                        {% for valor, label in FORMAS_PAGAMENTO %}
+                        <option value="{{ valor }}" {% if forma_pagamento == valor %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <label for="tipo" class="form-label">Tipo</label>
-                    <select name="tipo" id="tipo" class="form-select">
-                        <option value="todos" {% if tipo_selecionado == 'todos' %}selected{% endif %}>Todos</option>
-                        <option value="E" {% if tipo_selecionado == 'E' %}selected{% endif %}>Entradas</option>
-                        <option value="S" {% if tipo_selecionado == 'S' %}selected{% endif %}>Saídas</option>
-                    </select>
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary">Filtrar</button>
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <a href="{% url 'relatorios' %}" class="btn btn-secondary">Limpar</a>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div>
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="fas fa-filter me-1"></i>Filtrar
+                        </button>
+                        <a href="{% url 'relatorios' %}" class="btn btn-secondary">
+                            <i class="fas fa-times me-1"></i>Limpar
+                        </a>
+                    </div>
                 </div>
             </div>
         </form>
 
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card text-white bg-success">
-                    <div class="card-body">
-                        <h5 class="card-title">Total Entradas</h5>
-                        <p class="card-text h4">R$ {{ total_entradas|intcomma }}</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card text-white bg-danger">
-                    <div class="card-body">
-                        <h5 class="card-title">Total Saídas</h5>
-                        <p class="card-text h4">R$ {{ total_saidas|intcomma }}</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card text-white bg-primary">
-                    <div class="card-body">
-                        <h5 class="card-title">Saldo</h5>
-                        <p class="card-text h4">R$ {{ saldo|intcomma }}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card mt-4">
-    <div class="card-header">
-        <h5>Todas as Movimentações</h5>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead class="table-light">
-                    <tr>
-                        <th>Data</th>
-                        <th>Descrição</th>
-                        <th class="text-end">Valor</th>
-                        <th>Tipo</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for mov in movimentacoes %}
-                    <tr>
-                        <td>{{ mov.data|date:"d/m/Y" }}</td>
-                        <td>{{ mov.descricao }}</td>
-                        <td class="text-end {% if mov.tipo == 'E' %}text-success{% else %}text-danger{% endif %}">
-                            R$ {{ mov.valor|floatformat:2 }}
-                        </td>
-                        <td>
-                            <span class="badge bg-{% if mov.tipo == 'E' %}success{% else %}danger{% endif %}">
-                                {{ mov.get_tipo_display }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center text-muted">Nenhuma movimentação encontrada</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-                <tfoot>
-                    <tr class="table-active">
-                        <th colspan="2">Total</th>
-                        <th class="text-end">R$ {{ total_entradas|floatformat:2 }} (Entradas)</th>
-                        <th></th>
-                    </tr>
-                    <tr class="table-active">
-                        <th colspan="2">Total</th>
-                        <th class="text-end">R$ {{ total_saidas|floatformat:2 }} (Saídas)</th>
-                        <th></th>
-                    </tr>
-                    <tr class="table-active">
-                        <th colspan="2">Saldo</th>
-                        <th class="text-end">R$ {{ saldo|floatformat:2 }}</th>
-                        <th></th>
-                    </tr>
-                </tfoot>
-            </table>
-
-            <!-- Nova Seção de Vendas -->
-<div class="card mt-4">
-    <div class="card-header">
-        <h5>Vendas Realizadas</h5>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead class="table-light">
-                    <tr>
-                        <th>N° Venda</th>
-                        <th>Data</th>
-                        <th>Cliente</th>
-                        <th class="text-end">Total</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for venda in vendas %}
-                    <tr>
-                        <td>#{{ venda.id|stringformat:"06d" }}</td>
-                        <td>{{ venda.data|date:"d/m/Y H:i" }}</td>
-                        <td>{{ venda.cliente }}</td>
-                        <td class="text-end">R$ {{ venda.total|floatformat:2 }}</td>
-                        <td>
-                            <a href="{% url 'imprimir_recibo_venda' venda.id %}" 
-                               class="btn btn-sm btn-outline-primary" 
-                               title="Imprimir Recibo">
-                                <i class="fas fa-receipt"></i>
-                            </a>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5" class="text-center text-muted">Nenhuma venda encontrada</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-                <tfoot>
-                    <tr class="table-active">
-                        <th colspan="3">Total de Vendas</th>
-                        <th class="text-end">R$ {{ total_vendas|floatformat:2 }}</th>
-                        <th>{{ qtd_vendas }} venda(s)</th>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-    </div>
-</div>
-            <!-- No template, após a tabela: -->
-<div class="pagination justify-content-center mt-3">
-    <nav aria-label="Page navigation">
-        <ul class="pagination">
-            {% if page_obj.has_previous %}
-            <li class="page-item">
-                <a class="page-link" href="?page=1{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Primeira</a>
-            </li>
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Anterior</a>
-            </li>
-            {% endif %}
+        <!-- Conteúdo dos Relatórios -->
+        <div class="tab-content" id="relatoriosTabContent">
             
-            <!--<li class="page-item active">
-                <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-            </li>
-        -->            
-            {% if page_obj.has_next %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Próxima</a>
-            </li>
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Última</a>
-            </li>
-            {% endif %}
-        </ul>
-    </nav>
+            <!-- Relatório Financeiro -->
+            <div class="tab-pane fade show active" id="financeiro" role="tabpanel" aria-labelledby="financeiro-tab">
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-white bg-success">
+                            <div class="card-body text-center">
+                                <i class="fas fa-money-bill-wave fa-2x mb-2"></i>
+                                <h5 class="card-title">Entradas</h5>
+                                <p class="card-text h4">R$ {{ total_entradas|floatformat:2 }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-danger">
+                            <div class="card-body text-center">
+                                <i class="fas fa-share-square fa-2x mb-2"></i>
+                                <h5 class="card-title">Saídas</h5>
+                                <p class="card-text h4">R$ {{ total_saidas|floatformat:2 }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-primary">
+                            <div class="card-body text-center">
+                                <i class="fas fa-balance-scale fa-2x mb-2"></i>
+                                <h5 class="card-title">Saldo</h5>
+                                <p class="card-text h4">R$ {{ saldo|floatformat:2 }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-info">
+                            <div class="card-body text-center">
+                                <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                                <h5 class="card-title">Vendas</h5>
+                                <p class="card-text h4">R$ {{ total_vendas|floatformat:2 }}</p>
+                                <small>{{ qtd_vendas }} venda(s)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Relatório de Formas de Pagamento -->
+            <div class="tab-pane fade" id="pagamento" role="tabpanel" aria-labelledby="pagamento-tab">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>Vendas por Forma de Pagamento</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Forma de Pagamento</th>
+                                        <th class="text-end">Quantidade</th>
+                                        <th class="text-end">Valor Total</th>
+                                        <th class="text-end">Percentual</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for stats in vendas_por_forma_pagamento %}
+                                    <tr>
+                                        <td>
+                                            {% if stats.forma_pagamento %}
+                                                {% for valor, label in FORMAS_PAGAMENTO %}
+                                                    {% if valor == stats.forma_pagamento %}{{ label }}{% endif %}
+                                                {% endfor %}
+                                            {% else %}
+                                                <span class="text-muted">Não informado</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">{{ stats.quantidade }}</td>
+                                        <td class="text-end fw-bold">R$ {{ stats.total|floatformat:2 }}</td>
+                                        <td class="text-end">
+                                            {% if total_vendas > 0 %}
+                                                {% widthratio stats.total total_vendas 100 as percentual %}
+                                                <span class="badge bg-info">{{ percentual|floatformat:1 }}%</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">0%</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted py-4">
+                                            <i class="fas fa-credit-card fa-3x mb-2"></i><br>
+                                            Nenhuma venda encontrada
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    <tr class="fw-bold table-secondary">
+                                        <td colspan="2" class="text-end">Total Geral:</td>
+                                        <td class="text-end">R$ {{ total_vendas|floatformat:2 }}</td>
+                                        <td></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Relatório de Movimentações -->
+            <div class="tab-pane fade" id="movimentacoes" role="tabpanel" aria-labelledby="movimentacoes-tab">
+
+    <!-- BLOCO ENTRADAS -->
+    <div class="card mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-arrow-down me-2 text-success"></i>Entradas</h5>
+            <a href="{% url 'imprimir_entradas' %}" class="btn btn-sm btn-outline-primary" title="Imprimir Entradas">
+                <i class="fas fa-print"></i>
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-success">
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrição</th>
+                            <th class="text-end">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in entradas %}
+                        <tr>
+                            <td>{{ mov.data|date:"d/m/Y" }}</td>
+                            <td>{{ mov.descricao }}</td>
+                            <td class="text-end text-success">R$ {{ mov.valor|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">
+                                Nenhuma entrada encontrada
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="fw-bold table-secondary">
+                            <td colspan="2" class="text-end">Total Entradas:</td>
+                            <td class="text-end text-success">R$ {{ total_entradas|floatformat:2 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- BLOCO SAÍDAS -->
+    <div class="card mb-4">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-arrow-up me-2 text-danger"></i>Saídas</h5>
+            <a href="{% url 'imprimir_saidas' %}" class="btn btn-sm btn-outline-primary" title="Imprimir Saídas">
+                <i class="fas fa-print"></i>
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-danger">
+                        <tr>
+                            <th>Data</th>
+                            <th>Descrição</th>
+                            <th class="text-end">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in saidas %}
+                        <tr>
+                            <td>{{ mov.data|date:"d/m/Y" }}</td>
+                            <td>{{ mov.descricao }}</td>
+                            <td class="text-end text-danger">R$ {{ mov.valor|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">
+                                Nenhuma saída encontrada
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="fw-bold table-secondary">
+                            <td colspan="2" class="text-end">Total Saídas:</td>
+                            <td class="text-end text-danger">R$ {{ total_saidas|floatformat:2 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- SALDO GERAL -->
+    <div class="alert {% if saldo >= 0 %}alert-success{% else %}alert-danger{% endif %} fw-bold text-center">
+        Saldo: R$ {{ saldo|floatformat:2 }}
+    </div>
 </div>
+
+            <!-- Relatório de Vendas -->
+            <div class="tab-pane fade" id="vendas" role="tabpanel" aria-labelledby="vendas-tab">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Vendas Realizadas</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>N° Venda</th>
+                                        <th>Data</th>
+                                        <th>Cliente</th>
+                                        <th class="text-end">Total</th>
+                                        <th>Forma de Pagamento</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for venda in vendas %}
+                                    <tr>
+                                        <td>#{{ venda.id|stringformat:"06d" }}</td>
+                                        <td>{{ venda.data|date:"d/m/Y H:i" }}</td>
+                                        <td>{{ venda.cliente }}</td>
+                                        <td class="text-end">R$ {{ venda.total_com_desconto|floatformat:2 }}</td>
+                                        <td>
+                                            <span class="badge bg-info">
+                                                {{ venda.get_forma_pagamento_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'imprimir_recibo_venda' venda.id %}" 
+                                               class="btn btn-sm btn-outline-primary" 
+                                               title="Imprimir Recibo">
+                                                <i class="fas fa-receipt"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">
+                                            <i class="fas fa-shopping-cart fa-3x mb-2"></i><br>
+                                            Nenhuma venda encontrada
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                     
+                                    <tr class="fw-bold table-dark">
+                                        <td colspan="3" class="text-end">Total Geral:</td>
+                                        <td class="text-end text-success">R$ {{ total_vendas|floatformat:2 }}</td>
+                                        <td colspan="2"></td>
+                                    </tr>
+                                    <tr class="fw-bold table-light">
+                                        <td colspan="3" class="text-end">Quantidade de Vendas:</td>
+                                        <td class="text-end">{{ qtd_vendas }}</td>
+                                        <td colspan="2"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
-    </div>
-</div>
 
-<!-- Adicione este estilo -->
-<style>
-    @media print {
-        body * {
-            display: none !important;
-        }
-        .print-area, .print-area * {
-            display: block !important;
-            visibility: visible !important;
-        }
-        .print-area {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            padding: 20px;
-            background: white;
-        }
-        .no-print {
-            display: none !important;
-        }
-    }
-</style>
-
-<!-- Botão de impressão fora da área de impressão -->
-
-<!-- Envolva a área que deseja imprimir nesta div -->
-<div class="print-area">
-    
-    
-    <h4>Todas as Movimentações</h4>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Data</th>
-                <th>Descrição</th>
-                <th>Valor</th>
-                <th>Tipo</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for mov in movimentacoes %}
-            <tr>
-                <td>{{ mov.data|date:"d/m/Y" }}</td>
-                <td>{{ mov.descricao }}</td>
-                <td>R$ {{ mov.valor|floatformat:2 }}</td>
-                <td>{{ mov.get_tipo_display }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    
-    <div style="margin-top: 20px;">
-        <p><strong>Total Entradas:</strong> R$ {{ total_entradas|floatformat:2 }}</p>
-        <p><strong>Total Saídas:</strong> R$ {{ total_saidas|floatformat:2 }}</p>
-        <p><strong>Saldo:</strong> R$ {{ saldo|floatformat:2 }}</p>
-    </div>
-</div>
-
-
-
+<!-- JavaScript para funcionalidade das abas -->
 <script>
-function imprimirAreaEspecifica() {
-    // Abre uma nova janela com o conteúdo formatado
-    const conteudo = document.querySelector('.print-area').innerHTML;
-    const janela = window.open('', '_blank');
+// Inicializar tabs do Bootstrap
+const triggerTabList = document.querySelectorAll('#relatoriosTab button')
+triggerTabList.forEach(triggerEl => {
+    new bootstrap.Tab(triggerEl)
+})
+
+// Função para imprimir o relatório ativo
+function imprimirRelatorioAtivo() {
+    const tabPaneAtivo = document.querySelector('.tab-pane.active');
+    const conteudo = tabPaneAtivo.innerHTML;
+    const titulo = tabPaneAtivo.querySelector('.card-header h5')?.textContent || 'Relatório';
     
+    const janela = window.open('', '_blank');
     janela.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Relatório Financeiro</title>
+            <title>${titulo}</title>
             <style>
                 body { font-family: Arial; margin: 20px; }
-                h4 { margin: 10px 0 5px 0; }
+                h4 { color: #333; margin-bottom: 20px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th, td { padding: 8px; border: 1px solid #ddd; text-align: left; }
-                th { background-color: #f2f2f2; }
-                .total { margin-top: 15px; font-weight: bold; }
+                th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+                th { background-color: #f8f9fa; font-weight: bold; }
+                .text-end { text-align: right; }
+                .badge { padding: 5px 10px; border-radius: 4px; }
             </style>
         </head>
         <body>
+            <h4>${titulo}</h4>
             ${conteudo}
-            <p style="text-align: right; margin-top: 20px;">
+            <p style="text-align: right; margin-top: 30px; color: #6c757d;">
                 Emitido em: ${new Date().toLocaleDateString()}
             </p>
         </body>
         </html>
     `);
-    
     janela.document.close();
     janela.focus();
     setTimeout(() => {
@@ -311,5 +395,55 @@ function imprimirAreaEspecifica() {
         janela.close();
     }, 300);
 }
+
+// Atualizar URL com a aba ativa
+document.addEventListener('DOMContentLoaded', function() {
+    const tabs = document.querySelectorAll('[data-bs-toggle="tab"]');
+    tabs.forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(e) {
+            const target = e.target.getAttribute('data-bs-target').replace('#', '');
+            history.replaceState(null, '', `?type=${target}`);
+        });
+    });
+});
 </script>
+
+<style>
+.nav-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #ffffffff;
+    font-weight: 500;
+    padding: 0.75rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    border-bottom-color: #dee2e6;
+    color: #495057;
+}
+
+.nav-tabs .nav-link.active {
+    border-bottom-color: #0d6efd;
+    color: #fded0dff;
+    background: transparent;
+}
+
+.card {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border: none;
+    border-radius: 0.5rem;
+}
+
+.card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 0.5rem 0.5rem 0 0 !important;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

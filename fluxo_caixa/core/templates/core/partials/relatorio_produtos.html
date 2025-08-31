@@ -1,0 +1,36 @@
+<div class="card">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="fas fa-box me-2"></i>Produtos Mais Vendidos</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Produto</th>
+                        <th class="text-end">Quantidade Vendida</th>
+                        <th class="text-end">Total Vendido</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for produto in produtos_vendidos %}
+                    <tr>
+                        <td>
+                            <i class="fas fa-box me-2"></i>{{ produto.produto__nome }}
+                        </td>
+                        <td class="text-end">{{ produto.quantidade_total }}</td>
+                        <td class="text-end fw-bold text-success">R$ {{ produto.total_vendido|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="text-center text-muted py-4">
+                            <i class="fas fa-box-open fa-3x mb-2"></i><br>
+                            Nenhum dado de produtos encontrado
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

@@ -20,6 +20,7 @@ class Categoria(models.Model):
         return self.nome
 
 class Produto(models.Model):
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
     nome = models.CharField(max_length=100)
     descricao = models.TextField(blank=True, null=True)
     preco = models.DecimalField(max_digits=10, decimal_places=2)
@@ -49,15 +50,43 @@ class Movimentacao(models.Model):
     def __str__(self):
         return f"{self.get_tipo_display()} - R${self.valor}"
 
+# models.py
 class NotaVenda(models.Model):
+    FORMA_PAGAMENTO_CHOICES = [
+        ('dinheiro', 'Dinheiro'),
+        ('cartao_credito', 'Cartão de Crédito'),
+        ('cartao_debito', 'Cartão de Débito'),
+        ('pix', 'PIX'),
+        ('transferencia', 'Transferência Bancária'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('aberta', 'Aberta'),
+        ('finalizada', 'Finalizada'),
+        ('cancelada', 'Cancelada'),
+    ]
+    
     cliente = models.CharField(max_length=100)
     produtos = models.ManyToManyField(Produto, through='ItemVenda')
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Novos campos
+    desconto = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_com_desconto = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    forma_pagamento = models.CharField(max_length=20, choices=FORMA_PAGAMENTO_CHOICES, blank=False, null=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='aberta')
     data = models.DateTimeField(auto_now_add=True)
     usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
     
     def __str__(self):
         return f"Venda #{self.id} - {self.cliente}"
+    
+    def get_forma_pagamento_display(self):
+        if not self.forma_pagamento:
+            return "Não informado"
+        for valor, label in self.FORMA_PAGAMENTO_CHOICES:
+            if valor == self.forma_pagamento:
+                return label
+        return 'DEsconhecido'
 
 class ItemVenda(models.Model):
     nota = models.ForeignKey(NotaVenda, on_delete=models.CASCADE)

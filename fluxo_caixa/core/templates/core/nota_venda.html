@@ -116,12 +116,13 @@
 
             <div class="card-footer bg-light">
                 <div class="d-flex justify-content-between">
-                    <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+                    <a href="{% url 'cancelar_venda' nota.id %}" class="btn btn-danger"
+                        onclick="return confirm('Tem certeza que deseja cancelar esta venda?')">
                         <i class="fas fa-times me-2"></i>Cancelar
                     </a>
                     <a href="{% url 'finalizar_venda' nota.id %}" 
-                       class="btn btn-success {% if not itens %}disabled{% endif %}">
-                        <i class="fas fa-check me-2"></i>Finalizar Venda
+                        class="btn btn-success {% if not itens %}disabled{% endif %}">
+                            <i class="fas fa-check me-2"></i>Finalizar Venda
                     </a>
                     <a href="{% url 'imprimir_recibo_venda' nota.id %}" class="btn btn-success">
                         <i class="fas fa-receipt"></i> Visualizar Recibo
