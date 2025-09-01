@@ -7,6 +7,7 @@ from core import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
+    path('colaboradores/', include('colaborador.urls')),
     path('', views.dashboard, name='dashboard'),
     path('movimentacoes/<str:tipo>/', views.lista_movimentacoes, name='lista_movimentacoes'),
     path('entradas/', views.lista_movimentacoes, {'tipo': 'E'}, name='lista_movimentacoes'),

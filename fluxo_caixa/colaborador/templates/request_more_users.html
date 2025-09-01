@@ -1,0 +1,30 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2 class="text-center">Solicitar Mais Usuários</h2>
+        
+        <div class="alert alert-warning">
+            <p>Você atingiu o limite máximo de {{ user_limit.max_users }} colaboradores.</p>
+            <p>Solicite ao administrador para aumentar seu limite.</p>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+                <label for="additional_users" class="form-label">Quantos usuários adicionais você precisa?</label>
+                <input type="number" name="additional_users" id="additional_users" 
+                       class="form-control" min="1" max="20" value="3" required>
+                <div class="form-text">Máximo de 20 usuários por solicitação</div>
+            </div>
+            
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary">Enviar Solicitação</button>
+                <a href="{% url 'colaborador:colaborador_list' %}" class="btn btn-secondary">Voltar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

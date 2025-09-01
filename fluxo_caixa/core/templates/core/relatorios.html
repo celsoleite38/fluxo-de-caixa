@@ -182,6 +182,7 @@
                                         <td></td>
                                     </tr>
                                 </tbody>
+                                
                             </table>
                         </div>
                     </div>
@@ -281,7 +282,7 @@
     </div>
 </div>
 
-            <!-- Relatório de Vendas -->
+<!-- Relatório de Vendas -->
             <div class="tab-pane fade" id="vendas" role="tabpanel" aria-labelledby="vendas-tab">
                 <div class="card">
                     <div class="card-header bg-light">
@@ -295,9 +296,10 @@
                                         <th>N° Venda</th>
                                         <th>Data</th>
                                         <th>Cliente</th>
+                                        <th>Produtos</th>
                                         <th class="text-end">Total</th>
                                         <th>Forma de Pagamento</th>
-                                        <th>Ações</th>
+                                        <th class="no-print-actions">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -306,13 +308,17 @@
                                         <td>#{{ venda.id|stringformat:"06d" }}</td>
                                         <td>{{ venda.data|date:"d/m/Y H:i" }}</td>
                                         <td>{{ venda.cliente }}</td>
+                                        <td>{% for item in venda.itemvenda_set.all %}
+                                                    {{ item.produto.nome }} ({{ item.quantidade }})<br>
+                                                {% endfor %}
+                                        </td>
                                         <td class="text-end">R$ {{ venda.total_com_desconto|floatformat:2 }}</td>
                                         <td>
                                             <span class="badge bg-info">
                                                 {{ venda.get_forma_pagamento_display }}
                                             </span>
                                         </td>
-                                        <td>
+                                        <td class="no-print-actions">
                                             <a href="{% url 'imprimir_recibo_venda' venda.id %}" 
                                                class="btn btn-sm btn-outline-primary" 
                                                title="Imprimir Recibo">
@@ -330,9 +336,10 @@
                                     {% endfor %}
                                      
                                     <tr class="fw-bold table-dark">
-                                        <td colspan="3" class="text-end">Total Geral:</td>
+                                        <td colspan="4" class="text-end">Total Geral:</td>
                                         <td class="text-end text-success">R$ {{ total_vendas|floatformat:2 }}</td>
-                                        <td colspan="2"></td>
+                                        <td></td>
+                                        
                                     </tr>
                                     <tr class="fw-bold table-light">
                                         <td colspan="3" class="text-end">Quantidade de Vendas:</td>
@@ -340,6 +347,7 @@
                                         <td colspan="2"></td>
                                     </tr>
                                 </tbody>
+                                
                             </table>
                         </div>
                     </div>
@@ -349,7 +357,7 @@
     </div>
 </div>
 
-<!-- JavaScript para funcionalidade das abas -->
+
 <script>
 // Inicializar tabs do Bootstrap
 const triggerTabList = document.querySelectorAll('#relatoriosTab button')
@@ -444,6 +452,129 @@ document.addEventListener('DOMContentLoaded', function() {
 .table-hover tbody tr:hover {
     background-color: rgba(13, 110, 253, 0.05);
     transition: all 0.3s ease;
+}
+
+/* Estilos para impressão - SOLUÇÃO CORRIGIDA */
+@media print {
+    /* Oculta completamente a coluna Ações */
+    body * {
+        visibility: hidden;
+    }
+    
+    #relatoriosTabContent,
+    #relatoriosTabContent * {
+        visibility: visible;
+    }
+    
+    #relatoriosTabContent {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    
+    /* Especificamente para a tabela de vendas - coluna Ações */
+    #vendas table thead tr th:nth-child(7),
+    #vendas table tbody tr td:nth-child(7),
+    .no-print-actions {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        font-size: 0 !important;
+        line-height: 0 !important;
+        overflow: hidden !important;
+    }
+    
+    /* Ajusta os colspans para a nova estrutura (7 colunas -> 6 colunas) */
+    #vendas table tr.fw-bold.table-dark td:nth-child(1) {
+        colspan: 4;
+    }
+    
+    #vendas table tr.fw-bold.table-light td:nth-child(1) {
+        colspan: 3;
+    }
+    
+    /* Oculta elementos que não devem aparecer na impressão */
+    .no-print, .btn, .card-header-tabs, 
+    .d-flex.justify-content-between, .nav-tabs,
+    form.mb-4 {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Melhora a aparência para impressão */
+    body, html {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 8px !important;
+        background: white !important;
+    }
+    
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+        page-break-inside: avoid;
+    }
+    
+    .card-header {
+        background: white !important;
+        color: black !important;
+        border-bottom: 2px solid #000 !important;
+    }
+    
+    .table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 11px !important;
+    }
+    
+    .table th, .table td {
+        border: 1px solid #000 !important;
+        padding: 4px 6px !important;
+        color: #000 !important;
+    }
+    
+    .table th {
+        background-color: #f0f0f0 !important;
+        color: #000 !important;
+        font-weight: bold !important;
+    }
+    
+    /* Remove cores de fundo para economizar tinta */
+    .bg-success, .bg-danger, .bg-primary, .bg-info, 
+    .table-success, .table-danger, .table-dark,
+    .table-secondary, .alert-success, .alert-danger {
+        background-color: #fff !important;
+        color: #000 !important;
+        border-color: #000 !important;
+    }
+    
+    .text-success, .text-danger {
+        color: #000 !important;
+    }
+    
+    .badge {
+        border: 1px solid #000 !important;
+        background-color: transparent !important;
+        color: #000 !important;
+        padding: 2px 5px !important;
+    }
+    
+    /* Ajusta o layout dos cards de resumo */
+    .row.mb-4 {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        page-break-inside: avoid;
+    }
+    
+    .col-md-3 {
+        width: 50% !important;
+        margin-bottom: 10px !important;
+    }
 }
 </style>
 {% endblock %}

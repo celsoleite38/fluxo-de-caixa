@@ -1,0 +1,39 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h2>Gerenciar Permissões dos Colaboradores</h2>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Colaborador</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for colaborador in colaboradores %}
+        <tr>
+            <td>{{ colaborador.usuario_colaborador.username }}</td>
+            <td>{{ colaborador.usuario_colaborador.email }}</td>
+            <td>
+                <span class="badge bg-{% if colaborador.ativo %}success{% else %}danger{% endif %}">
+                    {{ colaborador.ativo|yesno:"Ativo,Inativo" }}
+                </span>
+            </td>
+            <td>
+                <a href="{% url 'colaborador:gerenciar_permissoes_colaborador' colaborador.id %}" 
+                   class="btn btn-primary btn-sm">Gerenciar Permissões</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="4" class="text-center">Nenhum colaborador cadastrado</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{% url 'colaborador:colaborador_list' %}" class="btn btn-secondary">Voltar</a>
+{% endblock %}

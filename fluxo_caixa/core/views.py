@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib import messages
 from django.db.models import Sum
-from datetime import datetime, timedelta, timezone, date
+from datetime import datetime, timedelta, timezone, date, time
 from .forms import CategoriaForm, EntradaEstoqueForm, UsuarioForm, CustomPasswordChangeForm, MovimentacaoForm, ProdutoForm, NotaVendaForm, ItemVendaForm, CategoriaForm
 from .models import ItemVenda, Movimentacao, Categoria, Produto, NotaVenda, MovimentoEstoque
 from django.db.models.signals import post_save
@@ -71,7 +71,7 @@ def dashboard(request):
     qtd_vendas_hoje = vendas_hoje.count()
     
     # Produtos com baixo estoque (mantido)
-    produtos_baixo_estoque = Produto.objects.filter(quantidade__lte=5)
+    produtos_baixo_estoque = Produto.objects.filter(usuario=request.user, quantidade__lte=5)
     
     context = {
         # Novos dados do dia
@@ -153,12 +153,7 @@ def excluir_movimentacao(request, pk):
 
 @login_required
 def relatorios(request):
-    # Filtros para Movimentações
     movimentacoes = Movimentacao.objects.filter(usuario=request.user)
-    entradas = movimentacoes.filter(tipo='E').order_by('-data')
-    saidas = movimentacoes.filter(tipo='S').order_by('-data')
-    
-    # Filtros para Vendas - APENAS VENDAS FINALIZADAS
     vendas = NotaVenda.objects.filter(usuario=request.user, status='finalizada')
     
     # Tratamento dos filtros
@@ -169,17 +164,24 @@ def relatorios(request):
     # Aplicar filtros de data
     if data_inicio:
         try:
-            data_inicio = datetime.strptime(data_inicio, '%Y-%m-%d').date()
-            movimentacoes = movimentacoes.filter(data__gte=data_inicio)
-            vendas = vendas.filter(data__gte=data_inicio)
+            data_inicio_obj = datetime.strptime(data_inicio, '%Y-%m-%d').date()
+            # Início do dia (00:00:00)
+            inicio_datetime = timezone.make_aware(
+                datetime.combine(data_inicio_obj, time.min)
+            )
+            movimentacoes = movimentacoes.filter(data__gte=inicio_datetime)
+            vendas = vendas.filter(data__gte=inicio_datetime)
         except ValueError:
             messages.error(request, "Data início inválida")
     
     if data_fim:
         try:
-            data_fim = datetime.strptime(data_fim, '%Y-%m-%d').date()
-            movimentacoes = movimentacoes.filter(data__lte=data_fim)
-            vendas = vendas.filter(data__lte=data_fim)
+            data_fim_obj = datetime.strptime(data_fim, '%Y-%m-%d').date()
+            fim_datetime = timezone.make_aware(
+                datetime.combine(data_fim_obj, time.max)
+            )
+            movimentacoes = movimentacoes.filter(data__lte=fim_datetime)
+            vendas = vendas.filter(data__lte=fim_datetime)
         except ValueError:
             messages.error(request, "Data fim inválida")
 
@@ -187,13 +189,15 @@ def relatorios(request):
     if forma_pagamento:
         vendas = vendas.filter(forma_pagamento=forma_pagamento)
 
-    # Cálculos para Movimentações
-    total_entradas = movimentacoes.filter(tipo='E').aggregate(total=Sum('valor'))['total'] or 0
-    total_saidas = movimentacoes.filter(tipo='S').aggregate(total=Sum('valor'))['total'] or 0
+    entradas = movimentacoes.filter(tipo='E').order_by('-data')
+    saidas = movimentacoes.filter(tipo='S').order_by('-data')
+    
+    
+    total_entradas = entradas.aggregate(total=Sum('valor'))['total'] or 0
+    total_saidas = saidas.aggregate(total=Sum('valor'))['total'] or 0
     saldo = total_entradas - total_saidas
     
-    # Cálculos para Vendas - CORRIGIDO
-    # Usar total_com_desconto para o valor real recebido
+   
     total_vendas = vendas.aggregate(total=Sum('total_com_desconto'))['total'] or 0
     total_vendas_bruto = vendas.aggregate(total=Sum('total'))['total'] or 0
     total_descontos = total_vendas_bruto - total_vendas
@@ -243,7 +247,7 @@ def relatorios(request):
     }
     return render(request, 'core/relatorios.html', context)
 
-# caixa/views.py
+
 
 
 def imprimir_entradas(request):
@@ -393,9 +397,7 @@ def adicionar_item_venda(request, nota_id):
             item.save()
             
             
-            produto = item.produto
-            produto.quantidade -= item.quantidade
-            produto.save()
+
             
             # Atualizar total da nota usando o property subtotal
             nota.total = sum(item.subtotal for item in nota.itemvenda_set.all())
@@ -478,6 +480,7 @@ def finalizar_venda(request, nota_id):
         nota.save()
         
         for item in itens:
+            # Atualizar estoque dos produtos
             produto = item.produto
             produto.quantidade -= item.quantidade
             produto.save()
@@ -499,15 +502,8 @@ def finalizar_venda(request, nota_id):
             usuario=request.user
         )
         
-        # Atualizar estoque dos produtos
-        for item in itens:
-            produto = item.produto
-            produto.quantidade -= item.quantidade
-            produto.save()
-        
         messages.success(request, 'Venda finalizada com sucesso!')
-        return redirect('dashboard')
-    
+        return redirect('dashboard')   
     # Se for GET, mostrar formulário de pagamento
     return render(request, 'core/finalizar_venda.html', {
         'nota': nota,

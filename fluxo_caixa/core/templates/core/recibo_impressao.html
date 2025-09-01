@@ -83,8 +83,8 @@
 {% block content %}
 <div class="container no-print">
     <div class="d-flex justify-content-between mb-4">
-        <a href="{% url 'adicionar_item_venda' nota.id %}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Voltar para Venda
+        <a href="javascript:history.back()" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Voltar
         </a>
         <button onclick="window.print()" class="btn btn-primary">
             <i class="fas fa-print"></i> Imprimir Recibo

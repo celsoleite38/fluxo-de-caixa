@@ -49,6 +49,10 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="{% url 'password_change' %}">Alterar Senha</a></li>
+                            <li>{% if not user.colaborador %}
+                                <a href="{% url 'colaborador:colaborador_list' %}">Gerenciar Colaboradores</a></li>
+                                <a href="{% url 'colaborador:gerenciar_permissoes' %}">Permissões</a>
+                            {% endif %}
                             <li><hr class="dropdown-divider"></li>
                             <li><form method="post" action="{% url 'login' %}" style="display: inline;">
                                     {% csrf_token %}
