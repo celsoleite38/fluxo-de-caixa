@@ -33,6 +33,7 @@ urlpatterns = [
     path('venda/aplicar-desconto/', views.aplicar_desconto_ajax, name='aplicar_desconto_ajax'),
     path('vendas/remover-item/<int:pk>/', views.remover_item_venda, name='remover_item_venda'),
     path('venda/recibo/<int:nota_id>/imprimir/', views.imprimir_recibo_venda, name='imprimir_recibo_venda'),
+    path('venda/<int:nota_id>/', views.ver_nota_venda, name='nota_venda'),
 
     path("relatorios/imprimir_entradas/", views.imprimir_entradas, name="imprimir_entradas"),
     path("relatorios/imprimir_saidas/", views.imprimir_saidas, name="imprimir_saidas"),
@@ -42,7 +43,7 @@ urlpatterns = [
     path('password_change/done/', auth_views.PasswordChangeDoneView.as_view(template_name='registration/password_change_done.html'), name='password_change_done'),
     path('accounts/register/', views.register, name='register'),
 
-
+    path('vendas/todas/', views.lista_todas_vendas, name='lista_todas_vendas'),
     
 
     

@@ -21,17 +21,19 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.template.loader import render_to_string
 from django.http import HttpResponse, JsonResponse
 from decimal import Decimal
-
+from colaborador.models import Colaborador
 import uuid
 
 @login_required
 def dashboard(request):
+    from .utils import get_usuario_referencia
+    usuario_referencia = get_usuario_referencia(request)
     hoje = date.today()
     inicio_mes = hoje.replace(day=1)
     
     # Movimentações do DIA (adicionado)
     movimentacoes_hoje = Movimentacao.objects.filter(
-        usuario=request.user,
+        usuario=usuario_referencia,
         data=hoje
     ).order_by('-data')
     
@@ -50,20 +52,20 @@ def dashboard(request):
     entradas_mes = Movimentacao.objects.filter(
         tipo='E', 
         data__gte=inicio_mes,
-        usuario=request.user
+        usuario=usuario_referencia
     ).aggregate(total=Sum('valor'))['total'] or 0
     
     saidas_mes = Movimentacao.objects.filter(
         tipo='S', 
         data__gte=inicio_mes,
-        usuario=request.user
+        usuario=usuario_referencia
     ).aggregate(total=Sum('valor'))['total'] or 0
     
     saldo_mes = entradas_mes - saidas_mes
     
     # Vendas do DIA (adicionado - se aplicável)
     vendas_hoje = NotaVenda.objects.filter(
-        usuario=request.user,
+        usuario=usuario_referencia,
         data=hoje
     )
     
@@ -71,7 +73,7 @@ def dashboard(request):
     qtd_vendas_hoje = vendas_hoje.count()
     
     # Produtos com baixo estoque (mantido)
-    produtos_baixo_estoque = Produto.objects.filter(usuario=request.user, quantidade__lte=5)
+    produtos_baixo_estoque = Produto.objects.filter(usuario=usuario_referencia, quantidade__lte=5)
     
     context = {
         # Novos dados do dia
@@ -96,9 +98,11 @@ def dashboard(request):
 
 @login_required
 def lista_movimentacoes(request, tipo):
+    from .utils import get_usuario_referencia
+    usuario_referencia = get_usuario_referencia(request)
     movimentacoes = Movimentacao.objects.filter(
         tipo=tipo,
-        usuario=request.user
+        usuario=usuario_referencia
     ).order_by('-data')
     
     total = movimentacoes.aggregate(total=Sum('valor'))['total'] or 0
@@ -113,11 +117,13 @@ def lista_movimentacoes(request, tipo):
 
 @login_required
 def adicionar_movimentacao(request):
+    from .utils import get_usuario_referencia
+    usuario_referencia = get_usuario_referencia(request)
     if request.method == 'POST':
         form = MovimentacaoForm(request.POST)
         if form.is_valid():
             movimentacao = form.save(commit=False)
-            movimentacao.usuario = request.user
+            movimentacao.usuario = usuario_referencia
             movimentacao.save()
             messages.success(request, 'Movimentação adicionada com sucesso!')
             return redirect('dashboard')
@@ -128,7 +134,8 @@ def adicionar_movimentacao(request):
 
 @login_required
 def editar_movimentacao(request, pk):
-    movimentacao = get_object_or_404(Movimentacao, pk=pk, usuario=request.user)
+    usuario_referencia = get_usuario_referencia(request)
+    movimentacao = get_object_or_404(Movimentacao, pk=pk, usuario=usuario_referenciar)
     if request.method == 'POST':
         form = MovimentacaoForm(request.POST, instance=movimentacao)
         if form.is_valid():
@@ -142,7 +149,8 @@ def editar_movimentacao(request, pk):
 
 @login_required
 def excluir_movimentacao(request, pk):
-    movimentacao = get_object_or_404(Movimentacao, pk=pk, usuario=request.user)
+    usuario_referencia = get_usuario_referencia(request)
+    movimentacao = get_object_or_404(Movimentacao, pk=pk, usuario=usuario_referencia)
     if request.method == 'POST':
         movimentacao.delete()
         messages.success(request, 'Movimentação excluída com sucesso!')
@@ -153,8 +161,12 @@ def excluir_movimentacao(request, pk):
 
 @login_required
 def relatorios(request):
-    movimentacoes = Movimentacao.objects.filter(usuario=request.user)
-    vendas = NotaVenda.objects.filter(usuario=request.user, status='finalizada')
+    from .utils import get_usuario_referencia
+    
+    usuario_referencia = get_usuario_referencia(request)
+    movimentacoes = Movimentacao.objects.filter(usuario=usuario_referencia)
+    
+    vendas = NotaVenda.objects.filter(usuario=usuario_referencia, status='finalizada')
     
     # Tratamento dos filtros
     data_inicio = request.GET.get('data_inicio')
@@ -251,8 +263,8 @@ def relatorios(request):
 
 
 def imprimir_entradas(request):
-    # Use Movimentacao filtrando por tipo 'E' (Entrada)
-    entradas = Movimentacao.objects.filter(tipo='E', usuario=request.user).order_by("-data")
+    usuario_referencia = get_usuario_referencia(request)
+    entradas = Movimentacao.objects.filter(tipo='E', usuario=usuario_referencia).order_by("-data")
     total = entradas.aggregate(total=Sum('valor'))['total'] or 0
     
     return render(request, "core/imprimir_entradas.html", {
@@ -262,7 +274,7 @@ def imprimir_entradas(request):
 
 def imprimir_saidas(request):
     # Use Movimentacao filtrando por tipo 'S' (Saída)
-    saidas = Movimentacao.objects.filter(tipo='S', usuario=request.user).order_by("-data")
+    saidas = Movimentacao.objects.filter(tipo='S', usuario=usuario_referencia).order_by("-data")
     total = saidas.aggregate(total=Sum('valor'))['total'] or 0
     
     return render(request, "core/imprimir_saidas.html", {
@@ -273,28 +285,49 @@ def imprimir_saidas(request):
 
 @login_required
 def lista_produtos(request):
-    produtos = Produto.objects.filter(usuario=request.user)
+    from .utils import get_usuario_referencia
+    
+    usuario_referencia = get_usuario_referencia(request)
+    produtos = Produto.objects.filter(usuario=usuario_referencia)
+    
     return render(request, 'core/estoque.html', {'produtos': produtos})
 
 @login_required
 def adicionar_produto(request):
+    from .utils import get_usuario_referencia
+    from .models import MovimentoEstoque
+    
+    usuario_referencia = get_usuario_referencia(request)
+    
     if request.method == 'POST':
         form = ProdutoForm(request.POST)
         if form.is_valid():
             produto = form.save(commit=False)
-            produto.usuario = request.user
+            produto.usuario = usuario_referencia
+            
+            # Salvar o produto primeiro para obter um ID
             produto.save()
+            
+            # Registrar a entrada inicial no histórico de estoque
+            MovimentoEstoque.objects.create(
+                produto=produto,
+                quantidade=produto.quantidade,
+                tipo='cadastro',
+                usuario=request.user  # Usar request.user em vez de usuario_referencia
+            )
+            
             messages.success(request, 'Produto adicionado com sucesso!')
             return redirect('estoque')
     else:
-        form = ProdutoForm(usuario=request.user)
+        form = ProdutoForm(usuario=usuario_referencia)
     
     return render(request, 'core/produto_form.html', {'form': form})
 
 @login_required
 @require_POST  # Garante que só aceita requisições POST
 def excluir_produto(request, id):
-    produto = get_object_or_404(Produto, id=id, usuario=request.user)
+    usuario_referencia = get_usuario_referencia(request)
+    produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
     
     try:
         produto.delete()
@@ -307,7 +340,8 @@ def excluir_produto(request, id):
 
 @login_required
 def editar_produto(request, id):
-    produto = get_object_or_404(Produto, id=id, usuario=request.user)
+    usuario_referencia = get_usuario_referencia(request)
+    produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
     
     if request.method == 'POST':
         form = ProdutoForm(request.POST, instance=produto)
@@ -322,7 +356,9 @@ def editar_produto(request, id):
 
 @login_required
 def entrada_estoque(request, id):
-    produto = get_object_or_404(Produto, id=id, usuario=request.user)
+    from .utils import get_usuario_referencia
+    usuario_referencia = get_usuario_referencia(request)
+    produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
     
     if request.method == 'POST':
         form = EntradaEstoqueForm(request.POST)
@@ -331,12 +367,12 @@ def entrada_estoque(request, id):
             produto.quantidade += quantidade
             produto.save()
             
-            # Registrar o movimento no histórico (opcional)
+            # Registrar o movimento no histórico
             MovimentoEstoque.objects.create(
                 produto=produto,
                 quantidade=quantidade,
-                tipo='entrada',
-                usuario=request.user
+                tipo='entrada',  # Tipo diferente do cadastro inicial
+                usuario=request.user  # Usar request.user em vez de usuario_referencia
             )
             
             messages.success(request, f'{quantidade} unidades adicionadas ao estoque com sucesso!')
@@ -350,30 +386,57 @@ def entrada_estoque(request, id):
     })
 
 
-
 @login_required
 def historico_estoque(request):
+    from .utils import get_usuario_referencia
+    usuario_referencia = get_usuario_referencia(request)
     
+    # Buscar todos os movimentos de estoque dos produtos do usuário
     movimentos = MovimentoEstoque.objects.filter(
-        usuario=request.user,
-        produto__usuario=request.user  
-    ).order_by('-data')
+        produto__usuario=usuario_referencia
+    ).select_related('produto', 'usuario').order_by('-data')
     
-    return render(request, 'core/historico_estoque.html', {
-        'movimentos': movimentos
-    })
+    # Obter lista de produtos para o filtro
+    produtos = Produto.objects.filter(usuario=usuario_referencia)
+    
+    # Aplicar filtros se existirem
+    tipo_filter = request.GET.get('tipo')
+    produto_filter = request.GET.get('produto')
+    
+    if tipo_filter and tipo_filter != 'todos':
+        movimentos = movimentos.filter(tipo=tipo_filter)
+    
+    if produto_filter and produto_filter != 'todos':
+        movimentos = movimentos.filter(produto_id=produto_filter)
+    
+    context = {
+        'movimentos': movimentos,
+        'produtos': produtos,
+        'tipos_movimento': MovimentoEstoque.TIPO_MOVIMENTO
+    }
+    
+    return render(request, 'core/historico_estoque.html', context)
 
 
 @login_required
 def criar_nota_venda(request):
+    from .utils import get_usuario_referencia
+    
+    usuario_referencia = get_usuario_referencia(request)
     if request.method == 'POST':
         form = NotaVendaForm(request.POST)
         if form.is_valid():
             nota = form.save(commit=False)
             nota.total = 0
-            nota.usuario = request.user
+            nota.usuario = usuario_referencia
+            nota.usuario_executante = request.user
             nota.save()
+            messages.success(request, 'Nota de venda criada com sucesso!')
             return redirect('adicionar_item_venda', nota_id=nota.id)
+        else:
+            # Debug: mostrar erros do formulário
+            print("Erros do formulário:", form.errors)
+            messages.error(request, 'Erro no formulário. Verifique os dados.')
     else:
         form = NotaVendaForm()
     
@@ -381,10 +444,23 @@ def criar_nota_venda(request):
 
 @login_required
 def adicionar_item_venda(request, nota_id):
-    nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
+    from .utils import get_usuario_referencia
+    
+    usuario_referencia = get_usuario_referencia(request)
+    
+    # Buscar a nota pelo usuario_referencia (dono) E permitir se o executante for o colaborador
+    nota = get_object_or_404(
+        NotaVenda, 
+        pk=nota_id, 
+        usuario=usuario_referencia  # Dono dos dados (usuário principal)
+    )
+    
+    # Verificar se o usuário atual tem permissão para acessar
+    if nota.usuario_executante != request.user and nota.usuario != request.user:
+        raise PermissionDenied("Você não tem permissão para acessar esta nota")
     
     if request.method == 'POST':
-        form = ItemVendaForm(request.POST, usuario=request.user)
+        form = ItemVendaForm(request.POST, usuario=usuario_referencia)  # Usar usuario_referencia
         if form.is_valid():
             item = form.save(commit=False)
             item.nota = nota
@@ -396,20 +472,17 @@ def adicionar_item_venda(request, nota_id):
             
             item.save()
             
-            
-
-            
-            # Atualizar total da nota usando o property subtotal
+            # Atualizar total da nota
             nota.total = sum(item.subtotal for item in nota.itemvenda_set.all())
             nota.save()
             
             messages.success(request, 'Item adicionado com sucesso!')
             return redirect('adicionar_item_venda', nota_id=nota.id)
     else:
-        form = ItemVendaForm(usuario=request.user)
+        form = ItemVendaForm(usuario=usuario_referencia)  # Usar usuario_referencia
     
-    # Carregar todos os produtos disponíveis para o select
-    produtos = Produto.objects.filter(usuario=request.user, quantidade__gt=0)
+    # Carregar produtos do usuario_referencia
+    produtos = Produto.objects.filter(usuario=usuario_referencia, quantidade__gt=0)
     
     itens_venda = nota.itemvenda_set.select_related('produto').all()
     
@@ -420,10 +493,11 @@ def adicionar_item_venda(request, nota_id):
         'produtos': produtos,
     })
 
-
 @login_required
 def finalizar_venda(request, nota_id):
-    nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
+    from .utils import get_usuario_referencia
+    usuario_referencia = get_usuario_referencia(request)
+    nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=usuario_referencia)
     
     
     itens = nota.itemvenda_set.all()
@@ -490,7 +564,7 @@ def finalizar_venda(request, nota_id):
                 produto=produto,
                 quantidade=item.quantidade,
                 tipo='saida',
-                usuario=request.user
+                usuario=usuario_referencia
             )
         
         # Criar movimentação de caixa com valor líquido (com desconto)
@@ -499,7 +573,7 @@ def finalizar_venda(request, nota_id):
             valor=nota.total_com_desconto,
             descricao=f"Venda #{nota.id} para {nota.cliente} - {forma_pagamento}",
             data=datetime.now().date(),
-            usuario=request.user
+            usuario=usuario_referencia
         )
         
         messages.success(request, 'Venda finalizada com sucesso!')
@@ -512,6 +586,7 @@ def finalizar_venda(request, nota_id):
 
 @login_required
 def cancelar_venda(request, nota_id):
+    #usuario_referencia = get_usuario_referencia(request)
     nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
     
     if nota.status == 'finalizada':
@@ -536,7 +611,7 @@ def aplicar_desconto_ajax(request):
             return JsonResponse({'success': False, 'error': 'Dados incompletos'})
         
         try:
-            nota = get_object_or_404(NotaVenda, id=nota_id, usuario=request.user)
+            nota = get_object_or_404(NotaVenda, id=nota_id, usuario=usuario_referencia)
             valor_desconto = Decimal(valor_desconto)
             
             if tipo_desconto == 'percentual':
@@ -569,10 +644,12 @@ def aplicar_desconto_ajax(request):
 # views.py
 @login_required
 def ver_nota_venda(request, nota_id):
-    nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
+    from .utils import get_usuario_referencia
+    usuario_referencia = get_usuario_referencia(request)
+    nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=usuario_referencia)
     itens = nota.itemvenda_set.all()
     
-    return render(request, 'nota_venda.html', {
+    return render(request, 'core/nota_venda.html', {
         'nota': nota,
         'itens': itens,
         'produtos': Produto.objects.all()  # ou sua query de produtos
@@ -581,7 +658,9 @@ def ver_nota_venda(request, nota_id):
 
 @login_required
 def imprimir_recibo_venda(request, nota_id):
-    nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
+    from .utils import get_usuario_referencia
+    usuario_referencia = get_usuario_referencia(request)
+    nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=usuario_referencia)
     
     context = {
         'nota': nota,
@@ -607,20 +686,21 @@ def register(request):
 
 @login_required
 def change_password(request):
+    usuario_referencia = get_usuario_referencia(request)
     if request.method == 'POST':
-        form = PasswordChangeForm(request.user, request.POST)
+        form = PasswordChangeForm(usuario_referencia, request.POST)
         if form.is_valid():
             user = form.save()
-            update_session_auth_hash(request, user)  # Mantém o usuário logado
+            update_session_auth_hash(request, user)
             messages.success(request, 'Sua senha foi alterada com sucesso!')
             return redirect('dashboard')
         else:
-            # Adiciona mensagens de erro específicas
+            
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"Erro no campo '{field}': {error}")
     else:
-        form = PasswordChangeForm(request.user)
+        form = PasswordChangeForm(usuario_referencia)
     
     return render(request, 'registration/change_password.html', {
         'form': form,
@@ -628,9 +708,10 @@ def change_password(request):
     })
 
 def lista_entradas(request):
+    
     movimentacoes = Movimentacao.objects.filter(
         tipo='E',
-        usuario=request.user
+        usuario=usuario_referencia
     ).order_by('-data')
     
     total = movimentacoes.aggregate(total=Sum('valor'))['total'] or 0
@@ -643,7 +724,7 @@ def lista_entradas(request):
 def lista_saidas(request):
     movimentacoes = Movimentacao.objects.filter(
         tipo='S',
-        usuario=request.user
+        usuario=usuario_referencia
     ).select_related('categoria').order_by('-data')
     
     total = movimentacoes.aggregate(total=Sum('valor'))['total'] or 0
@@ -671,7 +752,8 @@ def minha_view(request):
 
 @login_required
 def remover_item_venda(request, pk):
-    item = get_object_or_404(ItemVenda, pk=pk, nota__usuario=request.user)
+    usuario_referencia = get_usuario_referencia(request)
+    item = get_object_or_404(ItemVenda, pk=pk, nota__usuario=usuario_referencia)
     
     if request.method == 'POST':
         # Devolver a quantidade ao estoque
@@ -696,3 +778,66 @@ def remover_item_venda(request, pk):
 def user_logout(request):
     logout(request)
     return redirect('logout')
+
+
+@login_required
+def lista_todas_vendas(request):
+    from .utils import get_usuario_referencia
+    from django.contrib.auth.models import User
+    from django.db.models import Q
+    
+    usuario_referencia = get_usuario_referencia(request)
+    
+    # Buscar todos os vendedores possíveis (usuário principal + colaboradores)
+    vendedores_ids = Colaborador.objects.filter(
+        usuario_principal=usuario_referencia,
+        ativo=True
+    ).values_list('usuario_colaborador_id', flat=True)
+    
+    vendedores = User.objects.filter(
+        Q(id=usuario_referencia.id) | Q(id__in=vendedores_ids)
+    ).distinct()
+    
+    vendas = NotaVenda.objects.filter(usuario=usuario_referencia)
+    
+    # Aplicar filtros
+    status_filter = request.GET.get('status')
+    vendedor_filter = request.GET.get('vendedor')
+    data_inicio = request.GET.get('data_inicio')
+    data_fim = request.GET.get('data_fim')
+    
+    print(f"DEBUG: Status={status_filter}, Vendedor={vendedor_filter}")
+    
+    if status_filter:
+        vendas = vendas.filter(status=status_filter)
+    
+    if vendedor_filter:
+        vendas = vendas.filter(
+            Q(usuario_executante_id=vendedor_filter) | 
+            Q(usuario_id=vendedor_filter, usuario_executante__isnull=True)
+        )
+    
+    if data_inicio:
+        vendas = vendas.filter(data__gte=data_inicio)
+    
+    if data_fim:
+        from datetime import datetime
+        data_fim_obj = datetime.strptime(data_fim, '%Y-%m-%d')
+        data_fim_obj = data_fim_obj.replace(hour=23, minute=59, second=59)
+        vendas = vendas.filter(data__lte=data_fim_obj)
+    
+    # Ordenar e paginar
+    vendas = vendas.order_by('-data')
+    
+    # Estatísticas
+    total_vendas_count = vendas.count()
+    total_vendas_valor = vendas.aggregate(total=Sum('total_com_desconto'))['total'] or 0
+    
+    context = {
+        'vendas': vendas,
+        'vendedores': vendedores,
+        'total_vendas_count': total_vendas_count,
+        'total_vendas_valor': total_vendas_valor,
+        'STATUS_CHOICES': NotaVenda.STATUS_CHOICES,
+    }
+    return render(request, 'core/lista_todas_vendas.html', context)

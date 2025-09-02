@@ -41,6 +41,11 @@
                     <i class="fas fa-shopping-cart me-2"></i>Vendas
                 </button>
             </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" href="{% url 'lista_todas_vendas' %}">
+                    <i class="fas fa-list"></i> Status de Vendas
+                </a>
+            </li>
         </ul>
     </div>
     
@@ -249,6 +254,7 @@
                         <tr>
                             <th>Data</th>
                             <th>Descrição</th>
+                            <th>Forma de Pagamento</th>
                             <th class="text-end">Valor</th>
                         </tr>
                     </thead>
@@ -257,6 +263,11 @@
                         <tr>
                             <td>{{ mov.data|date:"d/m/Y" }}</td>
                             <td>{{ mov.descricao }}</td>
+                            <td>
+                                <span class="badge bg-info">
+                                    {{ mov.get_forma_pagamento_display }}
+                                </span>
+                            </td>
                             <td class="text-end text-danger">R$ {{ mov.valor|floatformat:2 }}</td>
                         </tr>
                         {% empty %}

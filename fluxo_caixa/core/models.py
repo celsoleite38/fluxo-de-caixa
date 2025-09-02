@@ -7,7 +7,10 @@ from django.contrib.auth.models import User
 
 
 class Categoria(models.Model):
-    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    usuario = models.ForeignKey(User, 
+    on_delete=models.SET_NULL, 
+    null=True, 
+    related_name='%(class)s_executado')
     nome = models.CharField(max_length=100)
     tipo = models.CharField(max_length=1, choices=(('E', 'Entrada'), ('S', 'Saída')))
     
@@ -15,7 +18,10 @@ class Categoria(models.Model):
         return self.nome
 
 class Produto(models.Model):
-    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    usuario = models.ForeignKey(User, 
+    on_delete=models.SET_NULL, 
+    null=True, 
+    related_name='%(class)s_executado')
     nome = models.CharField(max_length=100)
     descricao = models.TextField(blank=True, null=True)
     preco = models.DecimalField(max_digits=10, decimal_places=2)
@@ -30,6 +36,14 @@ class Movimentacao(models.Model):
         ('S', 'Saída'),
     )
     
+    FORMA_PAGAMENTO_CHOICES = (
+        ('dinheiro', 'Dinheiro'),
+        ('cartao_credito', 'Cartão de Crédito'),
+        ('cartao_debito', 'Cartão de Débito'),
+        ('pix', 'PIX'),
+        ('transferencia', 'Transferência Bancária'),
+    )
+    
     tipo = models.CharField(max_length=1, choices=TIPO_CHOICES)
     valor = models.DecimalField(max_digits=10, decimal_places=2)
     descricao = models.TextField()
@@ -38,12 +52,17 @@ class Movimentacao(models.Model):
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
     usuario = models.ForeignKey(User, on_delete=models.CASCADE)
-    
+    forma_pagamento = models.CharField(
+        max_length=15, 
+        choices=FORMA_PAGAMENTO_CHOICES,
+        default='dinheiro'
+    )
+
     class Meta:
         ordering = ['-data']
     
     def __str__(self):
-        return f"{self.get_tipo_display()} - R${self.valor}"
+        return f"{self.descricao} ({self.get_tipo_display()}) - R${self.valor}"
 
 # models.py
 class NotaVenda(models.Model):
@@ -70,7 +89,8 @@ class NotaVenda(models.Model):
     forma_pagamento = models.CharField(max_length=20, choices=FORMA_PAGAMENTO_CHOICES, blank=False, null=False)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='aberta')
     data = models.DateTimeField(auto_now_add=True)
-    usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notas_venda')
+    usuario_executante = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='notas_executadas')
     
     def __str__(self):
         return f"Venda #{self.id} - {self.cliente}"
@@ -104,17 +124,22 @@ class ItemVenda(models.Model):
         super().save(*args, **kwargs)
     
 class MovimentoEstoque(models.Model):
-    TIPO_CHOICES = (
-        ('entrada', 'Entrada'),
+    TIPO_MOVIMENTO = (
+        ('cadastro', 'Cadastro Inicial'),
+        ('entrada', 'Entrada Avulsa'),
         ('saida', 'Saída'),
     )
     
     produto = models.ForeignKey('Produto', on_delete=models.CASCADE)
     quantidade = models.IntegerField()
-    tipo = models.CharField(max_length=7, choices=TIPO_CHOICES)
+    tipo = models.CharField(max_length=8, choices=TIPO_MOVIMENTO)
     data = models.DateTimeField(auto_now_add=True)
-    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    usuario = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='%(class)s_executado'
+    )
     
     def __str__(self):
         return f"{self.produto.nome} - {self.quantidade} ({self.tipo})"
-

@@ -17,6 +17,7 @@ class Colaborador(models.Model):
         unique_together = ['usuario_principal', 'usuario_colaborador']
 
 
+
 class UserLimit(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='user_limit')
     max_users = models.PositiveIntegerField(

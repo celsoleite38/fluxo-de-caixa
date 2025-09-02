@@ -26,15 +26,15 @@
                         <td>{{ modulo.nome }}</td>
                         <td>
                             <input type="checkbox" name="{{ modulo.valor }}_ver" 
-                                   {% if modulo.permissao.pode_ver %}checked{% endif %}>
+                                   {% if modulo.permissao and modulo.permissao.pode_ver %}checked{% endif %}>
                         </td>
                         <td>
                             <input type="checkbox" name="{{ modulo.valor }}_editar" 
-                                   {% if modulo.permissao.pode_editar %}checked{% endif %}>
+                                   {% if modulo.permissao and modulo.permissao.pode_editar %}checked{% endif %}>
                         </td>
                         <td>
                             <input type="checkbox" name="{{ modulo.valor }}_excluir" 
-                                   {% if modulo.permissao.pode_excluir %}checked{% endif %}>
+                                   {% if modulo.permissao and modulo.permissao.pode_excluir %}checked{% endif %}>
                         </td>
                     </tr>
                     {% endfor %}

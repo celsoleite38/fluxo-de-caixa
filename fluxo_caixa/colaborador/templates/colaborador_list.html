@@ -35,14 +35,15 @@
     <tbody>
         {% for colaborador in colaboradores %}
         <tr>
-            <td>{{ colaborador.username }}</td>
-            <td>{{ colaborador.email }}</td>
-            <td>{{ colaborador.first_name }} {{ colaborador.last_name }}</td>
-            <td>{{ colaborador.date_joined|date:"d/m/Y" }}</td>
-            <td>{{ colaborador.last_login|date:"d/m/Y H:i"|default:"Nunca logou" }}</td>
+            <td>{{ colaborador.usuario_colaborador.username }}</td>
+            <td>{{ colaborador.usuario_colaborador.email }}</td>
+            <td>{{ colaborador.usuario_colaborador.first_name }} {{ colaborador.usuario_colaborador.last_name }}</td>
+            <td>{{ colaborador.data_criacao|date:"d/m/Y" }}</td>
+            <td>{{ colaborador.usuario_colaborador.last_login|date:"d/m/Y H:i"|default:"Nunca logou" }}</td>
             <td>
     
             <td>
+                <a href="{% url 'colaborador:gerenciar_permissoes_colaborador' colaborador.id %}" class="btn btn-sm btn-warning">Permissões</a>
                 <a href="{% url 'colaborador:colaborador_edit' colaborador.id %}" class="btn btn-sm btn-warning">Editar</a>
                 <a href="{% url 'colaborador:colaborador_delete' colaborador.id %}" class="btn btn-sm btn-danger">Excluir</a>
             </td>

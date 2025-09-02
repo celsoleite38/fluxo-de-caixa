@@ -20,13 +20,11 @@ def colaborador_list(request):
     )
     
     # AGORA CORRETO: Buscar apenas colaboradores associados ao usuário atual
-    colaboradores_ids = Colaborador.objects.filter(
+    colaboradores = Colaborador.objects.filter(
         usuario_principal=request.user,
         ativo=True
-    ).values_list('usuario_colaborador_id', flat=True)
-    
-    colaboradores = User.objects.filter(id__in=colaboradores_ids)
-    
+    )
+
     vagas_disponiveis = max(0, user_limit.max_users - colaboradores.count())
     
     context = {
@@ -193,7 +191,6 @@ def gerenciar_permissoes(request, colaborador_id=None):
         })
 
 def gerenciar_permissoes_colaborador(request, colaborador):
-   
     if request.method == 'POST':
         # Processar o formulário de permissões
         for modulo, modulo_nome in PermissaoColaborador.MODULOS_CHOICES:
@@ -209,11 +206,21 @@ def gerenciar_permissoes_colaborador(request, colaborador):
         messages.success(request, f"Permissões de {colaborador.usuario_colaborador.username} atualizadas!")
         return redirect('colaborador:gerenciar_permissoes')
     
-    # Buscar permissões existentes
-    permissoes = colaborador.permissoes.all()
+    # PREPARAR OS DADOS PARA O TEMPLATE (Solução 2)
+    permissoes_dict = {}
+    for permissao in colaborador.permissoes.all():
+        permissoes_dict[permissao.modulo] = permissao
+    
+    modulos_com_permissoes = []
+    for modulo_valor, modulo_nome in PermissaoColaborador.MODULOS_CHOICES:
+        permissao = permissoes_dict.get(modulo_valor)
+        modulos_com_permissoes.append({
+            'valor': modulo_valor,
+            'nome': modulo_nome,
+            'permissao': permissao
+        })
     
     return render(request, 'gerenciar_permissoes.html', {
         'colaborador': colaborador,
-        'permissoes': permissoes,
-        'modulos_choices': PermissaoColaborador.MODULOS_CHOICES
+        'modulos_com_permissoes': modulos_com_permissoes
     })

@@ -23,6 +23,7 @@
                         
                         <th>Valor</th>
                         <th>Descrição</th>
+                        <th>Forma de Pagamento</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -33,6 +34,9 @@
                        
                         <td class="text-danger fw-bold">R$ {{ saida.valor|intcomma }}</td>
                         <td>{{ saida.descricao|truncatechars:30 }}</td>
+                        <td><span class="badge bg-info">
+                                    {{ saida.get_forma_pagamento_display }}
+                                </span></td>
                         <td>
                             <a href="{% url 'editar_movimentacao' saida.id %}" class="btn btn-sm btn-warning" title="Editar">
                                 <i class="fas fa-edit"></i>

@@ -46,6 +46,9 @@ class NotaVendaForm(forms.ModelForm):
     class Meta:
         model = NotaVenda
         fields = ['cliente']
+    def __init__(self, *args, **kwargs):
+        self.usuario = kwargs.pop('usuario', None)
+        super().__init__(*args, **kwargs)
 
 class ItemVendaForm(forms.ModelForm):
     class Meta:
@@ -90,16 +93,18 @@ class CustomPasswordChangeForm(PasswordChangeForm):
 class MovimentacaoForm(forms.ModelForm):
     class Meta:
         model = Movimentacao
-        fields = ['tipo', 'valor', 'descricao', 'data']
+        fields = ['tipo', 'valor', 'descricao', 'data', 'forma_pagamento']
         widgets = {
             'data': forms.DateInput(attrs={'type': 'date'}),
             'tipo': forms.Select(attrs={'class': 'form-select'}),
+            'forma_pagamento': forms.Select(attrs={'class': 'form-select'}),
         }
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        self.fields['descricao'].required = False
+        self.fields['descricao'].required = True
+        self.fields['forma_pagamento'].required = True
 
 class CategoriaForm(forms.ModelForm):
     class Meta:
