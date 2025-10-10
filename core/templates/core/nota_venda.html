@@ -1,0 +1,231 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4>Nova Venda</h4>
+                    <span class="badge bg-light text-dark fs-6">Total: R$ {{ nota.total|intcomma }}</span>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <!-- Formulário do Cliente -->
+                <form method="post" class="mb-4">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label for="cliente" class="form-label">Cliente</label>
+                            <input type="text" class="form-control" id="cliente" name="cliente" 
+                                   value="{{ nota.cliente }}" required>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-save me-2"></i>Salvar Cliente
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <hr>
+
+                <!-- Formulário de Itens -->
+                <h5 class="mb-3">Adicionar Produtos</h5>
+                <form method="post" action="{% url 'adicionar_item_venda' nota.id %}">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="produto" class="form-label">Produto</label>
+                            <select class="form-select" id="produto" name="produto" required>
+                                <option value="">Selecione um produto</option>
+                                {% for produto in produtos %}
+                                <option value="{{ produto.id }}" 
+                                        data-preco="{{ produto.preco }}"
+                                        data-estoque="{{ produto.quantidade }}">
+                                    {{ produto.nome }} (R$ {{ produto.preco|intcomma }} | Estoque: {{ produto.quantidade }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="quantidade" class="form-label">Quantidade</label>
+                            <input type="number" class="form-control" id="quantidade" 
+                                   name="quantidade" min="1" value="1" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="preco" class="form-label">Preço Unit.</label>
+                            <input type="text" class="form-control" id="preco" readonly>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="fas fa-plus me-2"></i>Adicionar
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Lista de Itens Adicionados -->
+                <div class="table-responsive mt-4">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Produto</th>
+                                <th>Qtd.</th>
+                                <th>Preço Unit.</th>
+                                <th>Subtotal</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in itens %}
+                            <tr>
+                                <td>{{ item.produto.nome }}</td>
+                                <td>{{ item.quantidade }}</td>
+                                <td>R$ {{ item.preco_unitario|intcomma }}</td>
+                                <td>R$ {{ item.subtotal|floatformat:2 }}</td>
+                                <td>  
+                                    <a href="{% url 'remover_item_venda' item.id %}" 
+                                        class="btn btn-danger btn-sm"
+                                        onclick="return confirm('Tem certeza que deseja remover este item?');">
+                                            <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">
+                                    Nenhum item adicionado à venda
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-group-divider">
+                            <tr>
+                                <th colspan="3" class="text-end">Total:</th>
+                                <th>R$ {{ nota.total|intcomma }}</th>
+                                <th></th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+<!-- nota_venda.html -->
+
+            <div class="card-footer bg-light">
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'cancelar_venda' nota.id %}" class="btn btn-danger"
+                        onclick="return confirm('Tem certeza que deseja cancelar esta venda?')">
+                        <i class="fas fa-times me-2"></i>Cancelar
+                    </a>
+                    <a href="{% url 'finalizar_venda' nota.id %}" 
+                        class="btn btn-success {% if not itens %}disabled{% endif %}">
+                            <i class="fas fa-check me-2"></i>Finalizar Venda
+                    </a>
+                    <a href="{% url 'imprimir_recibo_venda' nota.id %}" class="btn btn-success">
+                        <i class="fas fa-receipt"></i> Visualizar Recibo
+                    </a>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- Painel de Informações -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5>Informações da Venda</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-5">Número:</dt>
+                    <dd class="col-sm-7">#{{ nota.id|stringformat:"06d" }}</dd>
+
+                    <dt class="col-sm-5">Data:</dt>
+                    <dd class="col-sm-7">{{ nota.data|date:"d/m/Y H:i" }}</dd>
+
+                    <dt class="col-sm-5">Vendedor:</dt>
+                    <dd class="col-sm-7">{{ venda.usuario.get_full_name }}</dd>
+
+                    <dt class="col-sm-5">Status:</dt>
+                    <dd class="col-sm-7">
+                        <span class="badge bg-warning text-dark">Em andamento</span>
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Painel de Produtos -->
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5>Produtos Disponíveis</h5>
+                    <span class="badge bg-light text-dark">{{ produtos.count }}</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for produto in produtos %}
+                    <div class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ produto.nome }}</strong>
+                            <span>R$ {{ produto.preco|intcomma }}</span>
+                        </div>
+                        <small class="text-muted">Estoque: {{ produto.quantidade }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript para manipulação do formulário -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Atualiza preço quando seleciona produto
+    const produtoSelect = document.getElementById('produto');
+    const precoInput = document.getElementById('preco');
+    const quantidadeInput = document.getElementById('quantidade');
+    
+    produtoSelect.addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption.value) {
+            precoInput.value = selectedOption.getAttribute('data-preco');
+            
+            // Limita a quantidade máxima ao estoque disponível
+            const estoque = parseInt(selectedOption.getAttribute('data-estoque'));
+            quantidadeInput.max = estoque;
+            if (quantidadeInput.value > estoque) {
+                quantidadeInput.value = estoque;
+            }
+        } else {
+            precoInput.value = '';
+        }
+    });
+    
+    // Validação antes de enviar
+    document.querySelector('form').addEventListener('submit', function(e) {
+        if (!produtoSelect.value) {
+            e.preventDefault();
+            alert('Selecione um produto antes de adicionar!');
+        }
+    });
+});
+</script>
+
+<style>
+    .list-group-item {
+        transition: all 0.2s;
+    }
+    .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+    .table tbody tr:hover {
+        background-color: rgba(0, 0, 0, 0.02);
+    }
+</style>
+{% endblock %}

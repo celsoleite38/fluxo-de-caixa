@@ -1,0 +1,52 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div style="background-image: linear-gradient(to right, #34495e 0%, #4a6fa5 100%);" class="card-header bg-success text-white">
+                
+                <h4 class="mb-0">Criar Nova Conta</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="id_first_name" class="form-label">Nome</label>
+                            {{ form.first_name }}
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="id_username" class="form-label">Usuário</label>
+                            {{ form.username }}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_email" class="form-label">E-mail</label>
+                            {{ form.email }}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_password1" class="form-label">Senha</label>
+                            {{ form.password1 }}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="id_password2" class="form-label">Confirmar Senha</label>
+                            {{ form.password2 }}
+                        </div>
+                        <div class="col-12">
+                            <label for="id_telefone" class="form-label">Telefone (WhatsApp)</label>
+                            {{ form.telefone }}
+                        </div>
+                    </div>
+                    
+                    <div  class="d-grid gap-2 mt-4">
+                        <button style="background-image: linear-gradient(to right, #34495e 0%, #4a6fa5 100%);" class="btn btn-success"><strong>Registrar</strong></button>
+                        <a href="{% url 'login' %}" class="btn btn-outline-secondary">Já tem conta? Faça login</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

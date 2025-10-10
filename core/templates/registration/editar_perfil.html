@@ -1,0 +1,115 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block content %}
+
+<div class="container my-5">
+    <h2 class="mb-4">Editar Perfil</h2>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                {% csrf_token %}
+
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <!-- Nav tabs -->
+                <ul class="nav nav-tabs mb-4" id="perfilTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="dados-tab" data-bs-toggle="tab" data-bs-target="#dados" type="button" role="tab">Dados Pessoais</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="empresa-tab" data-bs-toggle="tab" data-bs-target="#empresa" type="button" role="tab">Empresa</button>
+                    </li>
+                </ul>
+
+                <!-- Tab panes -->
+                <div class="tab-content">
+                    <!-- Dados Pessoais -->
+                    <div class="tab-pane fade show active" id="dados" role="tabpanel">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="{{ form.name.id_for_label }}" class="form-label">Nome</label>
+                                {{ form.name }}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.email.id_for_label }}" class="form-label">Email</label>
+                                {{ form.email }}
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="{{ form.telefone.id_for_label }}" class="form-label">Telefone</label>
+                                {{ form.telefone }}
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.celular.id_for_label }}" class="form-label">Celular</label>
+                                {{ form.celular }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.endereco.id_for_label }}" class="form-label">Endereço</label>
+                            {{ form.endereco }}
+                        </div>
+                    </div>
+
+                    <!-- Empresa -->
+                    <div class="tab-pane fade" id="empresa" role="tabpanel">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="{{ form.CNPJ.id_for_label }}" class="form-label">CNPJ</label>
+                                {{ form.CNPJ }}
+                            </div>
+                            <div class="col-md-8">
+                                <label for="{{ form.Empresas.id_for_label }}" class="form-label">Nome da Empresa</label>
+                                {{ form.Empresas }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.logotipo.id_for_label }}" class="form-label">Logotipo</label>
+                            {{ form.logotipo }}
+                            {% if user.perfil.logotipo %}
+                                <div class="mt-2">
+                                    <img src="{{ user.perfil.logotipo.url }}" alt="Logotipo" class="img-thumbnail" style="max-height:150px;">
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap form validation -->
+<script>
+    (function () {
+        'use strict'
+        var forms = document.querySelectorAll('.needs-validation')
+        Array.prototype.slice.call(forms)
+            .forEach(function (form) {
+                form.addEventListener('submit', function (event) {
+                    if (!form.checkValidity()) {
+                        event.preventDefault()
+                        event.stopPropagation()
+                    }
+                    form.classList.add('was-validated')
+                }, false)
+            })
+    })()
+</script>
+
+{% endblock %}

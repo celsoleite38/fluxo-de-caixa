@@ -1,0 +1,190 @@
+{% extends "core/base.html" %}
+
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .tipo-toggle {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .tipo-toggle input[type="radio"] {
+        display: none;
+    }
+    
+    .tipo-toggle label {
+        flex: 1;
+        text-align: center;
+        padding: 1rem;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-weight: 500;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .tipo-toggle input[type="radio"]:checked + label {
+        border-color: #4361ee;
+        background-color: rgba(67, 97, 238, 0.05);
+        color: #4361ee;
+    }
+    
+    #id_tipo_E:checked + label {
+        border-color: #06d6a0;
+        background-color: rgba(6, 214, 160, 0.05);
+        color: #06d6a0;
+    }
+    
+    #id_tipo_S:checked + label {
+        border-color: #ef476f;
+        background-color: rgba(239, 71, 111, 0.05);
+        color: #ef476f;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4><i class="fas fa-exchange-alt"></i> Adicionar Movimentação</h4>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="form-section">
+                <div class="form-section-title">
+                    <i class="fas fa-exchange-alt"></i> Tipo de Movimentação
+                </div>
+                
+                <div class="tipo-toggle">
+                    <input type="radio" id="id_tipo_E" name="tipo" value="E" {% if form.tipo.value == "E" %}checked{% endif %} required>
+                    <label for="id_tipo_E">
+                        <i class="fas fa-arrow-down text-success"></i>
+                        Entrada
+                    </label>
+                    
+                    <input type="radio" id="id_tipo_S" name="tipo" value="S" {% if form.tipo.value == "S" %}checked{% endif %} required>
+                    <label for="id_tipo_S">
+                        <i class="fas fa-arrow-up text-danger"></i>
+                        Saída
+                    </label>
+                </div>
+                
+                {% if form.tipo.errors %}
+                <div class="text-danger">
+                    {% for error in form.tipo.errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="form-section">
+                <div class="form-section-title">
+                    <i class="fas fa-info-circle"></i> Detalhes da Movimentação
+                </div>
+                
+                <div class="mb-3">
+                    <label for="id_valor" class="form-label">
+                        <i class="fas fa-money-bill-wave"></i> Valor
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text">R$</span>
+                        <input type="number" class="form-control" id="id_valor" name="valor" 
+                               step="0.01" min="0.01" value="{{ form.valor.value|default:'' }}" required>
+                    </div>
+                    {% if form.valor.errors %}
+                    <div class="text-danger">
+                        {% for error in form.valor.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="id_descricao" class="form-label">
+                        <i class="fas fa-align-left"></i> Descrição
+                    </label>
+                    <input type="text" class="form-control" id="id_descricao" name="descricao" 
+                           value="{{ form.descricao.value|default:'' }}" required>
+                    {% if form.descricao.errors %}
+                    <div class="text-danger">
+                        {% for error in form.descricao.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="id_forma_pagamento" class="form-label">
+                        <i class="fas fa-credit-card"></i> Forma de Pagamento
+                    </label>
+                    <select class="form-select" id="id_forma_pagamento" name="forma_pagamento" required>
+                        <option value="">Selecione a forma de pagamento</option>
+                        <option value="dinheiro" {% if form.forma_pagamento.value == "dinheiro" %}selected{% endif %}>Dinheiro</option>
+                        <option value="cartao_credito" {% if form.forma_pagamento.value == "cartao_credito" %}selected{% endif %}>Cartão de Crédito</option>
+                        <option value="cartao_debito" {% if form.forma_pagamento.value == "cartao_debito" %}selected{% endif %}>Cartão de Débito</option>
+                        <option value="pix" {% if form.forma_pagamento.value == "pix" %}selected{% endif %}>PIX</option>
+                        <option value="transferencia" {% if form.forma_pagamento.value == "transferencia" %}selected{% endif %}>Transferência Bancária</option>
+                    </select>
+                    {% if form.forma_pagamento.errors %}
+                    <div class="text-danger">
+                        {% for error in form.forma_pagamento.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <label for="id_data" class="form-label">
+                        <i class="fas fa-calendar-alt"></i> Data
+                    </label>
+                    <input type="date" class="form-control" id="id_data" name="data" 
+                           value="{{ form.data.value|default:'' }}" required>
+                    {% if form.data.errors %}
+                    <div class="text-danger">
+                        {% for error in form.data.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i> Salvar
+                </button>
+                <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+                    <i class="fas fa-times me-1"></i> Cancelar
+                </a>
+            </div>
+        </form>
+        
+        {% if form.errors %}
+        <div class="alert alert-danger mt-3">
+            <h5 class="alert-heading">Erro no formulário</h5>
+            <ul class="mb-0">
+                {% for field, errors in form.errors.items %}
+                    {% for error in errors %}
+                        {% if field != '__all__' %}
+                            <li>{{ error }}</li>
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

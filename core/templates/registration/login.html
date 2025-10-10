@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+{% load static %}
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluxo de Caixa - Login</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- CSS Customizado -->
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #4c4683ff;
+            --accent-gradient: linear-gradient(45deg, #4c4683ff, #6766c2ff);
+            --light-color: #ecf0f1;
+            --white: #ffffff;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 8px 25px rgba(0, 0, 0, 0.15);
+            --transition: all 0.3s ease;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background: var(--white);
+            border-radius: 20px;
+            box-shadow: var(--shadow-hover);
+            overflow: hidden;
+            max-width: 900px;
+            width: 100%;
+            min-height: 600px;
+            display: flex;
+            animation: fadeInUp 0.8s ease-out;
+        }
+        
+        .login-left {
+            background: linear-gradient(135deg, #34495e 0%, #4a6fa5 100%);
+            color: var(--white);
+            padding: 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-left::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.05)"/><circle cx="10" cy="50" r="0.5" fill="rgba(255,255,255,0.05)"/><circle cx="90" cy="30" r="0.5" fill="rgba(255,255,255,0.05)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            opacity: 0.3;
+            animation: float 20s ease-in-out infinite;
+        }
+        
+        .logo-container {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .logo-icon {
+            /* Removido background e border-radius para não ter bordas */
+            width: 150px; /* Aumentado o tamanho da imagem */
+            height: 150px; /* Aumentado o tamanho da imagem */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            /* Removido box-shadow para um visual mais limpo, se desejar */
+            /* box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2); */
+            padding: 0; /* Removido padding */
+        }
+
+        .logo-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; /* Garante que a imagem se ajuste sem cortar */
+        }
+        
+        .logo-text {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .logo-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+        
+        .login-right {
+            padding: 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            flex: 1;
+            background: var(--white);
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .login-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .login-subtitle {
+            color: #6c757d;
+            font-size: 1rem;
+        }
+        
+        .form-floating {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-control {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            font-size: 1rem;
+            transition: var(--transition);
+            background-color: #f8f9fa;
+        }
+        
+        .form-control:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 0.2rem rgba(76, 70, 131, 0.25);
+            background-color: var(--white);
+        }
+        
+        .form-floating > label {
+            color: #6c757d;
+            font-weight: 500;
+        }
+        
+        .btn-login {
+            background: var(--accent-gradient);
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--white);
+            transition: var(--transition);
+            width: 100%;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(76, 70, 131, 0.3);
+            color: var(--white);
+        }
+        
+        .btn-login:active {
+            transform: translateY(0);
+        }
+        
+        .login-links {
+            text-align: center;
+        }
+        
+        .login-links a {
+            color: var(--accent-color);
+            text-decoration: none;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+        
+        .login-links a:hover {
+            color: var(--secondary-color);
+            text-decoration: underline;
+        }
+        
+        .alert {
+            border-radius: 12px;
+            border: none;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+        }
+        
+        .alert-danger {
+            background-color: rgba(231, 76, 60, 0.1);
+            color: #e74c3c;
+            border-left: 4px solid #e74c3c;
+        }
+        
+        .input-group-text {
+            background-color: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-right: none;
+            border-radius: 12px 0 0 12px;
+            color: var(--primary-color);
+        }
+        
+        .input-group .form-control {
+            border-left: none;
+            border-radius: 0 12px 12px 0;
+        }
+        
+        .input-group .form-control:focus {
+            border-left: 2px solid var(--accent-color);
+        }
+        
+        .input-group .input-group-text {
+            border-color: var(--accent-color);
+        }
+        
+        .form-control:focus + .input-group-text,
+        .input-group .form-control:focus ~ .input-group-text {
+            border-color: var(--accent-color);
+        }
+        
+        /* Animações */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+        
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .login-container {
+                flex-direction: column;
+                margin: 10px;
+                border-radius: 15px;
+                min-height: auto;
+            }
+            
+            .login-left {
+                padding: 2rem;
+                min-height: 200px;
+            }
+            
+            .login-right {
+                padding: 2rem;
+            }
+            
+            .logo-icon {
+                width: 60px;
+                height: 60px;
+                font-size: 1.5rem;
+            }
+            
+            .logo-text {
+                font-size: 1.5rem;
+            }
+            
+            .login-title {
+                font-size: 1.5rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            
+            .login-left,
+            .login-right {
+                padding: 1.5rem;
+            }
+            
+            .logo-text {
+                font-size: 1.25rem;
+            }
+            
+            .login-title {
+                font-size: 1.25rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <!-- Lado Esquerdo - Branding -->
+        <div class="login-left">
+            <div class="logo-container">
+                <div class="text-center mb-4">
+                        <img src="{% static 'images/fluxo_logo.png' %}" style="width: 260px; height: auto;">
+                    </div>
+                <h1 class="logo-text">Fluxo de Caixa</h1>
+                <p class="logo-subtitle">
+                    Gerencie suas finanças com inteligência e simplicidade. 
+                    Controle total do seu fluxo de caixa em uma plataforma moderna e intuitiva.
+                </p>
+            </div>
+        </div>
+        
+        <!-- Lado Direito - Formulário -->
+        <div class="login-right">
+            <div class="login-header">
+                <h2 class="login-title">
+                    <i class="fas fa-sign-in-alt me-2"></i>
+                    Entrar
+                </h2>
+                <p class="login-subtitle">Acesse sua conta para continuar</p>
+            </div>
+            
+            <form method="post">
+                {% csrf_token %}
+                
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                <div class="input-group mb-3">
+                    <span class="input-group-text">
+                        <i class="fas fa-user"></i>
+                    </span>
+                    <div class="form-floating">
+                        <input type="text" name="username" class="form-control" id="id_username" placeholder="Usuário" required>
+                        <label for="id_username">Usuário</label>
+                    </div>
+                </div>
+                
+                <div class="input-group mb-4">
+                    <span class="input-group-text">
+                        <i class="fas fa-lock"></i>
+                    </span>
+                    <div class="form-floating">
+                        <input type="password" name="password" class="form-control" id="id_password" placeholder="Senha" required>
+                        <label for="id_password">Senha</label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-login">
+                    <i class="fas fa-sign-in-alt me-2"></i>
+                    Entrar
+                </button>
+                
+                <div class="login-links">
+                    <a href="{% url 'password_change' %}">
+                        <i class="fas fa-key me-1"></i>
+                        Esqueceu a senha?
+                    </a>
+                    <span class="mx-2">•</span>
+                    <a href="{% url 'register' %}">
+                        <i class="fas fa-user-plus me-1"></i>
+                        Criar nova conta
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Script customizado -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Adicionar efeito de foco nos inputs
+            const inputs = document.querySelectorAll('.form-control');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.parentElement.classList.add('focused');
+                });
+                
+                input.addEventListener('blur', function() {
+                    if (!this.value) {
+                        this.parentElement.parentElement.classList.remove('focused');
+                    }
+                });
+            });
+            
+            // Animação do botão de login
+            const loginBtn = document.querySelector('.btn-login');
+            loginBtn.addEventListener('click', function(e) {
+                // Adicionar efeito de ripple
+                const ripple = document.createElement('span');
+                const rect = this.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const x = e.clientX - rect.left - size / 2;
+                const y = e.clientY - rect.top - size / 2;
+                
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = x + 'px';
+                ripple.style.top = y + 'px';
+                ripple.classList.add('ripple');
+                
+                this.appendChild(ripple);
+                
+                setTimeout(() => {
+                    ripple.remove();
+                }, 600);
+            });
+        });
+    </script>
+    
+    <style>
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0);
+            animation: ripple-animation 0.6s linear;
+            pointer-events: none;
+        }
+        
+        @keyframes ripple-animation {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+        
+        .input-group.focused .input-group-text {
+            border-color: var(--accent-color);
+            background-color: rgba(76, 70, 131, 0.1);
+        }
+    </style>
+</body>
+</html>

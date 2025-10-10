@@ -1,0 +1,51 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h2>Gerenciar Permissões - {{ colaborador.usuario_colaborador.username }}</h2>
+
+<form method="post">
+    {% csrf_token %}
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>Permissões por Módulo</h5>
+        </div>
+        <div class="card-body">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Módulo</th>
+                        <th>Pode Ver</th>
+                        <th>Pode Editar</th>
+                        <th>Pode Excluir</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for modulo in modulos_com_permissoes %}
+                    <tr>
+                        <td>{{ modulo.nome }}</td>
+                        <td>
+                            <input type="checkbox" name="{{ modulo.valor }}_ver" 
+                                   {% if modulo.permissao and modulo.permissao.pode_ver %}checked{% endif %}>
+                        </td>
+                        <td>
+                            <input type="checkbox" name="{{ modulo.valor }}_editar" 
+                                   {% if modulo.permissao and modulo.permissao.pode_editar %}checked{% endif %}>
+                        </td>
+                        <td>
+                            <input type="checkbox" name="{{ modulo.valor }}_excluir" 
+                                   {% if modulo.permissao and modulo.permissao.pode_excluir %}checked{% endif %}>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="mt-3">
+        <button type="submit" class="btn btn-primary">Salvar Permissões</button>
+        <a href="{% url 'colaborador:gerenciar_permissoes' %}" class="btn btn-secondary">Voltar</a>
+    </div>
+</form>
+{% endblock %}

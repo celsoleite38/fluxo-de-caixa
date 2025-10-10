@@ -1,0 +1,248 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Finalizar Venda - #{{ nota.id|stringformat:"06d" }}</h4>
+                    <span class="badge bg-light text-dark fs-6">Total: R$ {{ nota.total|intcomma }}</span>
+                </div>
+            </div>
+            
+            <div class="card-body">
+                <!-- Informações da Venda -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <strong>Cliente:</strong> {{ nota.cliente }}<br>
+                        <strong>Data:</strong> {{ nota.data|date:"d/m/Y H:i" }}<br>
+                        <strong>Vendedor:</strong> {{ request.user.get_full_name }}
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <strong>Subtotal:</strong> R$ {{ nota.total|intcomma }}<br>
+                        <strong>Itens:</strong> {{ itens.count }}
+                    </div>
+                </div>
+
+                <!-- Itens da Venda -->
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Produto</th>
+                                <th>Qtd</th>
+                                <th>Preço Unit.</th>
+                                <th>Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in itens %}
+                            <tr>
+                                <td>{{ item.produto.nome }}</td>
+                                <td>{{ item.quantidade }}</td>
+                                <td>R$ {{ item.preco_unitario|intcomma }}</td>
+                                <td>R$ {{ item.subtotal|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Formulário de Pagamento -->
+                <form method="post" id="form-pagamento">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <!-- Desconto -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Desconto</label>
+                                <div class="input-group">
+                                    <select class="form-select" id="tipo-desconto" style="max-width: 100px;">
+                                        <option value="valor">R$</option>
+                                        <option value="percentual">%</option>
+                                        
+                                    </select>
+                                    <input type="number" class="form-control" id="valor-desconto" 
+                                           step="0.01" min="0" placeholder="0.00">
+                                    <button type="button" class="btn btn-outline-primary" id="btn-aplicar">
+                                        Aplicar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Forma de Pagamento -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Forma de Pagamento *</label>
+                                <select class="form-select" name="forma_pagamento" required>
+                                    <option value="">Selecione a forma de pagamento...</option>
+                                    <option value="dinheiro">Dinheiro</option>
+                                    <option value="cartao_credito">Cartão de Crédito</option>
+                                    <option value="cartao_debito">Cartão de Débito</option>
+                                    <option value="pix">PIX</option>
+                                    <option value="transferencia">Transferência Bancária</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <!-- Resumo Financeiro -->
+                            <div class="card border-0 bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-title">Resumo do Pagamento</h6>
+                                    
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Subtotal:</span>
+                                        <strong>R$ {{ nota.total|intcomma }}</strong>
+                                    </div>
+                                    
+                                    <div class="d-flex justify-content-between mb-2 text-danger">
+                                        <span>Desconto:</span>
+                                        <strong id="desconto-display">R$ 0,00</strong>
+                                    </div>
+                                    
+                                    <hr>
+                                    
+                                    <div class="d-flex justify-content-between mb-3 fs-5 text-success">
+                                        <span>Total a Pagar:</span>
+                                        <strong id="total-com-desconto">R$ {{ nota.total|intcomma }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campos hidden para desconto -->
+                    <input type="hidden" name="desconto_percentual" id="desconto-percentual" value="0">
+                    <input type="hidden" name="desconto_valor" id="desconto-valor" value="0">
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'adicionar_item_venda' nota.id %}" class="btn btn-secondary me-md-2">
+                            <i class="fas fa-arrow-left me-2"></i>Voltar para Venda
+                        </a>
+                        <button type="submit" class="btn btn-success" id="btn-confirmar">
+                            <i class="fas fa-check-circle me-2"></i>Confirmar Pagamento
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JAVASCRIPT CORRIGIDO -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== PÁGINA CARREGADA ===');
+    
+    // Converter o total para número (corrigindo o erro de sintaxe)
+    const totalOriginal = parseFloat('{{ nota.total }}'.replace(',', '.'));
+    console.log('Total original convertido:', totalOriginal);
+    
+    let descontoAplicado = 0;
+    
+    // Elementos
+    const btnAplicar = document.getElementById('btn-aplicar');
+    const formaPagamento = document.querySelector('select[name="forma_pagamento"]');
+    const formPagamento = document.getElementById('form-pagamento');
+    
+    // Função para aplicar desconto
+    function aplicarDesconto() {
+        console.log('=== APLICANDO DESCONTO ===');
+        
+        const tipo = document.getElementById('tipo-desconto').value;
+        const valorInput = document.getElementById('valor-desconto');
+        const valor = parseFloat(valorInput.value) || 0;
+        
+        console.log('Tipo:', tipo, 'Valor digitado:', valor);
+        
+        if (valor <= 0) {
+            alert('Digite um valor para desconto');
+            valorInput.focus();
+            return;
+        }
+
+        // Calcular desconto
+        let desconto;
+        if (tipo === 'percentual') {
+            if (valor > 100) {
+                alert('Desconto percentual não pode ser maior que 100%');
+                return;
+            }
+            desconto = (totalOriginal * valor) / 100;
+        } else {
+            desconto = valor;
+        }
+        
+        // Validar desconto
+        if (desconto > totalOriginal) {
+            alert('Desconto não pode ser maior que o total da venda (R$ ' + totalOriginal.toFixed(2) + ')');
+            return;
+        }
+        
+        const totalComDesconto = totalOriginal - desconto;
+        
+        // Atualizar a tela
+        document.getElementById('desconto-display').textContent = 'R$ ' + desconto.toFixed(2);
+        document.getElementById('total-com-desconto').textContent = 'R$ ' + totalComDesconto.toFixed(2);
+        
+        // Atualizar campos hidden
+        if (tipo === 'percentual') {
+            document.getElementById('desconto-percentual').value = valor;
+            document.getElementById('desconto-valor').value = 0;
+        } else {
+            document.getElementById('desconto-percentual').value = 0;
+            document.getElementById('desconto-valor').value = valor;
+        }
+        
+        descontoAplicado = desconto;
+        console.log('Desconto aplicado: R$', desconto);
+        console.log('Total com desconto: R$', totalComDesconto);
+    }
+    
+    // Função para validar formulário
+    function validarFormulario(event) {
+        if (!formaPagamento.value) {
+            event.preventDefault();
+            alert('Selecione uma forma de pagamento');
+            formaPagamento.focus();
+            return false;
+        }
+        return true;
+    }
+    
+    // Event listeners
+    btnAplicar.addEventListener('click', aplicarDesconto);
+    formPagamento.addEventListener('submit', validarFormulario);
+    
+    // Enter no campo de desconto também aplica
+    document.getElementById('valor-desconto').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            aplicarDesconto();
+        }
+    });
+    
+    console.log('Event listeners configurados');
+    console.log('Total original: R$', totalOriginal);
+    
+    // Debug: verificar se os elementos existem
+    console.log('Botão aplicar:', btnAplicar);
+    console.log('Forma pagamento:', formaPagamento);
+    console.log('Formulário:', formPagamento);
+});
+</script>
+
+<style>
+.card {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+.table-sm th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+</style>
+{% endblock %}

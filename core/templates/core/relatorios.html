@@ -1,0 +1,630 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}Relatórios{% endblock %}
+
+
+{% block extra_css %}
+<style>
+    /* Estilos específicos para relatórios, se necessário */
+    .nav-tabs .nav-link {
+        border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
+        border: 1px solid transparent;
+        margin-bottom: -1px;
+        background-color: var(--light-color);
+        color: var(--primary-color);
+        transition: var(--transition);
+    }
+
+    .nav-tabs .nav-link:hover {
+        border-color: #e9ecef #e9ecef var(--light-color);
+        background-color: var(--white);
+        transform: translateY(-2px);
+    }
+
+    .nav-tabs .nav-link.active {
+        color: var(--white);
+        background: var(--accent-gradient);
+        border-color: var(--accent-color) var(--accent-color) var(--white);
+        font-weight: 600;
+        transform: translateY(0);
+    }
+
+    .tab-content {
+        border: 1px solid #e9ecef;
+        border-top: none;
+        border-radius: 0 0 var(--border-radius) var(--border-radius);
+        padding: 1.5rem;
+        background-color: var(--white);
+    }
+
+    .report-summary-card {
+        border-left: 4px solid;
+        transition: var(--transition);
+    }
+
+    .report-summary-card.bg-success {
+        border-color: var(--success-color);
+    }
+    .report-summary-card.bg-danger {
+        border-color: var(--danger-color);
+    }
+    .report-summary-card.bg-primary {
+        border-color: var(--primary-color);
+    }
+    .report-summary-card.bg-info {
+        border-color: var(--info-color);
+    }
+
+    .report-summary-card .card-body {
+        padding: 1rem;
+    }
+
+    .report-summary-card .card-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .report-summary-card .card-text {
+        font-size: 1.8rem;
+        font-weight: 700;
+    }
+
+    .report-summary-card small {
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* Print styles */
+    @media print {
+        .no-print, .btn, .card-header-tabs, 
+        .d-flex.justify-content-between, .nav-tabs,
+        form.mb-4, .sidebar, .top-bar, .whatsapp-float {
+            display: none !important;
+            visibility: hidden !important;
+        }
+        
+        body, html {
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 10px !important;
+            background: white !important;
+            color: black !important;
+        }
+        
+        .main-content {
+            margin-left: 0 !important;
+            width: 100% !important;
+            padding: 10px !important;
+        }
+
+        .card {
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+            page-break-inside: avoid;
+            margin-bottom: 10px !important;
+        }
+        
+        .card-header {
+            background: #f0f0f0 !important;
+            color: black !important;
+            border-bottom: 1px solid #ccc !important;
+            padding: 8px 10px !important;
+        }
+        
+        .table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 10px !important;
+        }
+        
+        .table th, .table td {
+            border: 1px solid #ccc !important;
+            padding: 5px 8px !important;
+            color: black !important;
+        }
+        
+        .table thead th {
+            background-color: #e0e0e0 !important;
+            color: black !important;
+            font-weight: bold !important;
+        }
+        
+        .table tbody tr:nth-child(odd) {
+            background-color: #f9f9f9 !important;
+        }
+
+        .table tbody tr:hover {
+            background-color: inherit !important;
+            transform: none !important;
+        }
+
+        .alert {
+            box-shadow: none !important;
+            border: 1px solid #ccc !important;
+            background-color: #f0f0f0 !important;
+            color: black !important;
+            padding: 8px 10px !important;
+        }
+
+        .badge {
+            border: 1px solid #ccc !important;
+            background-color: #eee !important;
+            color: black !important;
+            padding: 2px 5px !important;
+        }
+
+        .report-summary-card {
+            border-left: 1px solid #ccc !important;
+            box-shadow: none !important;
+        }
+
+        .report-summary-card .card-body {
+            background-color: #f9f9f9 !important;
+            color: black !important;
+        }
+
+        .report-summary-card .card-title, .report-summary-card .card-text {
+            color: black !important;
+        }
+
+        .report-summary-card .stats-icon {
+            background: #e0e0e0 !important;
+            color: black !important;
+        }
+
+        .col-md-3 {
+            width: 50% !important;
+            flex: 0 0 50% !important;
+            max-width: 50% !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm fade-in">
+    <div class="card-header d-flex justify-content-between align-items-center bg-gradient-primary text-white">
+        <h4 class="mb-0"><i class="fas fa-chart-bar me-2"></i> Relatórios Detalhados</h4>
+        <button onclick="imprimirRelatorioAtivo()" class="btn btn-light btn-sm no-print hover-lift">
+            <i class="fas fa-print me-1"></i> Imprimir
+        </button>
+    </div>
+    
+    <div class="card-body p-0">
+        <!-- Menu de Navegação entre Relatórios -->
+        <ul class="nav nav-tabs card-header-tabs" id="relatoriosTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="financeiro-tab" data-bs-toggle="tab" 
+                        data-bs-target="#financeiro" type="button" role="tab" aria-controls="financeiro" 
+                        aria-selected="true">
+                    <i class="fas fa-money-bill-wave me-2"></i>Financeiro
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pagamento-tab" data-bs-toggle="tab" 
+                        data-bs-target="#pagamento" type="button" role="tab" aria-controls="pagamento" 
+                        aria-selected="false">
+                    <i class="fas fa-credit-card me-2"></i>Forma Pagamento
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="movimentacoes-tab" data-bs-toggle="tab" 
+                        data-bs-target="#movimentacoes" type="button" role="tab" aria-controls="movimentacoes" 
+                        aria-selected="false">
+                    <i class="fas fa-exchange-alt me-2"></i>Movimentações
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="vendas-tab" data-bs-toggle="tab" 
+                        data-bs-target="#vendas" type="button" role="tab" aria-controls="vendas" 
+                        aria-selected="false">
+                    <i class="fas fa-shopping-cart me-2"></i>Vendas
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" href="{% url 'lista_todas_vendas' %}">
+                    <i class="fas fa-list me-2"></i>Status de Vendas
+                </a>
+            </li>
+        </ul>
+        
+        <div class="p-4">
+            <!-- Filtros Comuns -->
+            <form method="get" class="mb-4 p-3 border rounded shadow-sm bg-light fade-in">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label for="data_inicio" class="form-label">Data Início</label>
+                        <input type="date" name="data_inicio" id="data_inicio" class="form-control" 
+                               value="{{ data_inicio }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="data_fim" class="form-label">Data Fim</label>
+                        <input type="date" name="data_fim" id="data_fim" class="form-control"
+                               value="{{ data_fim }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="forma_pagamento" class="form-label">Forma de Pagamento</label>
+                        <select name="forma_pagamento" id="forma_pagamento" class="form-select">
+                            <option value="">Todas as formas</option>
+                            {% for valor, label in FORMAS_PAGAMENTO %}
+                            <option value="{{ valor }}" {% if forma_pagamento == valor %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12 d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary me-2 hover-lift">
+                            <i class="fas fa-filter me-1"></i>Filtrar
+                        </button>
+                        <a href="{% url 'relatorios' %}" class="btn btn-outline-secondary hover-lift">
+                            <i class="fas fa-times me-1"></i>Limpar
+                        </a>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Conteúdo dos Relatórios -->
+            <div class="tab-content" id="relatoriosTabContent">
+                
+                <!-- Relatório Financeiro -->
+                <div class="tab-pane fade show active" id="financeiro" role="tabpanel" aria-labelledby="financeiro-tab">
+                    <div class="row mb-4 g-3">
+                        <div class="col-lg-3 col-md-6">
+                            <div class="card report-summary-card bg-success text-white hover-lift">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-arrow-up fa-2x mb-2"></i>
+                                    <h5 class="card-title">Entradas</h5>
+                                    <p class="card-text">R$ {{ total_entradas|floatformat:2 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <div class="card report-summary-card bg-danger text-white hover-lift">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-arrow-down fa-2x mb-2"></i>
+                                    <h5 class="card-title">Saídas</h5>
+                                    <p class="card-text">R$ {{ total_saidas|floatformat:2 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <div class="card report-summary-card bg-primary text-white hover-lift">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-balance-scale fa-2x mb-2"></i>
+                                    <h5 class="card-title">Saldo</h5>
+                                    <p class="card-text">R$ {{ saldo|floatformat:2 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <div class="card report-summary-card bg-info text-white hover-lift">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                                    <h5 class="card-title">Vendas</h5>
+                                    <p class="card-text">R$ {{ total_vendas|floatformat:2 }}</p>
+                                    <small>{{ qtd_vendas }} venda(s)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráficos Financeiros (Placeholder) -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card chart-container fade-in">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribuição de Movimentações</h5>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="movimentacoesChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Relatório de Formas de Pagamento -->
+                <div class="tab-pane fade" id="pagamento" role="tabpanel" aria-labelledby="pagamento-tab">
+                    <div class="card shadow-sm fade-in">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>Vendas por Forma de Pagamento</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Forma de Pagamento</th>
+                                            <th class="text-end">Quantidade</th>
+                                            <th class="text-end">Valor Total</th>
+                                            <th class="text-end">Percentual</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for stats in vendas_por_forma_pagamento %}
+                                        <tr>
+                                            <td>
+                                                {% if stats.forma_pagamento %}
+                                                    {% for valor, label in FORMAS_PAGAMENTO %}
+                                                        {% if valor == stats.forma_pagamento %}{{ label }}{% endif %}
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <span class="text-muted">Não informado</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">{{ stats.quantidade }}</td>
+                                            <td class="text-end fw-bold text-primary">R$ {{ stats.total|floatformat:2 }}</td>
+                                            <td class="text-end">
+                                                {% if total_vendas > 0 %}
+                                                    {% widthratio stats.total total_vendas 100 as percentual %}
+                                                    <span class="badge bg-info">{{ percentual|floatformat:1 }}%</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">0%</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+                                                <i class="fas fa-credit-card fa-3x mb-2"></i><br>
+                                                Nenhuma venda encontrada para o período/filtros selecionados.
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                        <tr class="fw-bold table-secondary">
+                                            <td colspan="2" class="text-end">Total Geral:</td>
+                                            <td class="text-end text-primary">R$ {{ total_vendas|floatformat:2 }}</td>
+                                            <td></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Relatório de Movimentações -->
+                <div class="tab-pane fade" id="movimentacoes" role="tabpanel" aria-labelledby="movimentacoes-tab">
+                    <!-- BLOCO ENTRADAS -->
+                    <div class="card mb-4 shadow-sm fade-in">
+                        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-arrow-up me-2"></i>Entradas</h5>
+                            <a href="{% url 'imprimir_entradas' %}" class="btn btn-light btn-sm no-print hover-lift" title="Imprimir Entradas">
+                                <i class="fas fa-print"></i> Imprimir
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th><i class="fas fa-calendar-alt me-1"></i> Data</th>
+                                            <th><i class="fas fa-file-alt me-1"></i> Descrição</th>
+                                            <th class="text-end"><i class="fas fa-dollar-sign me-1"></i> Valor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for mov in entradas %}
+                                        <tr>
+                                            <td>{{ mov.data|date:"d/m/Y" }}</td>
+                                            <td>{{ mov.descricao }}</td>
+                                            <td class="text-end text-success fw-bold">R$ {{ mov.valor|floatformat:2 }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted py-4">
+                                                <i class="fas fa-inbox fa-3x mb-2"></i><br>
+                                                Nenhuma entrada encontrada para o período/filtros selecionados.
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                        <tr class="fw-bold table-secondary">
+                                            <td colspan="2" class="text-end">Total Entradas:</td>
+                                            <td class="text-end text-success">R$ {{ total_entradas|floatformat:2 }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BLOCO SAÍDAS -->
+                    <div class="card mb-4 shadow-sm fade-in">
+                        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-arrow-down me-2"></i>Saídas</h5>
+                            <a href="{% url 'imprimir_saidas' %}" class="btn btn-light btn-sm no-print hover-lift" title="Imprimir Saídas">
+                                <i class="fas fa-print"></i> Imprimir
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th><i class="fas fa-calendar-alt me-1"></i> Data</th>
+                                            <th><i class="fas fa-file-alt me-1"></i> Descrição</th>
+                                            <th><i class="fas fa-credit-card me-1"></i> Forma de Pagamento</th>
+                                            <th class="text-end"><i class="fas fa-dollar-sign me-1"></i> Valor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for mov in saidas %}
+                                        <tr>
+                                            <td>{{ mov.data|date:"d/m/Y" }}</td>
+                                            <td>{{ mov.descricao }}</td>
+                                            <td>
+                                                <span class="badge bg-info">
+                                                    {{ mov.get_forma_pagamento_display }}
+                                                </span>
+                                            </td>
+                                            <td class="text-end text-danger fw-bold">R$ {{ mov.valor|floatformat:2 }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+                                                <i class="fas fa-inbox fa-3x mb-2"></i><br>
+                                                Nenhuma saída encontrada para o período/filtros selecionados.
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                        <tr class="fw-bold table-secondary">
+                                            <td colspan="3" class="text-end">Total Saídas:</td>
+                                            <td class="text-end text-danger">R$ {{ total_saidas|floatformat:2 }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SALDO GERAL -->
+                    <div class="alert {% if saldo >= 0 %}alert-success{% else %}alert-danger{% endif %} fw-bold text-center fade-in">
+                        <i class="fas fa-balance-scale me-2"></i> Saldo Total: <span class="h5 mb-0">R$ {{ saldo|floatformat:2 }}</span>
+                    </div>
+                </div>
+
+                <!-- Relatório de Vendas -->
+                <div class="tab-pane fade" id="vendas" role="tabpanel" aria-labelledby="vendas-tab">
+                    <div class="card shadow-sm fade-in">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Vendas Realizadas</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>N° Venda</th>
+                                            <th>Data</th>
+                                            <th>Cliente</th>
+                                            <th>Produtos</th>
+                                            <th class="text-end">Total</th>
+                                            <th>Forma de Pagamento</th>
+                                            <th class="no-print-actions">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for venda in vendas %}
+                                        <tr>
+                                            <td>#{{ venda.id|stringformat:"06d" }}</td>
+                                            <td>{{ venda.data|date:"d/m/Y H:i" }}</td>
+                                             <td>{% if venda.cliente %}{{ venda.cliente.nome }}{% else %}-{% endif %}</td>
+                                            <td>
+                                                <ul class="list-unstyled mb-0">
+                                                    {% for item in venda.itens.all %}
+                                                        <li>{{ item.produto.nome }} (x{{ item.quantidade }})</li>
+                                                    {% empty %}
+                                                        <li>Nenhum produto</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </td>
+                                            <td class="text-end fw-bold text-primary">R$ {{ venda.valor_total|floatformat:2 }}</td>
+                                            <td>
+                                                <span class="badge bg-secondary">
+                                                    {{ venda.get_forma_pagamento_display }}
+                                                </span>
+                                            </td>
+                                            <td class="no-print-actions">
+                                                <a href="{% url 'nota_venda' venda.id %}" class="btn btn-info btn-sm" title="Ver Detalhes">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted py-4">
+                                                <i class="fas fa-shopping-cart fa-3x mb-2"></i><br>
+                                                Nenhuma venda encontrada para o período/filtros selecionados.
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                        <tr class="fw-bold table-secondary">
+                                            <td colspan="4" class="text-end">Total Geral de Vendas:</td>
+                                            <td class="text-end text-primary">R$ {{ total_vendas|floatformat:2 }}</td>
+                                            <td colspan="2"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Ativar a aba correta ao carregar a página (se houver hash na URL)
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get("tab");
+        if (activeTab) {
+            const tabElement = document.getElementById(`${activeTab}-tab`);
+            if (tabElement) {
+                new bootstrap.Tab(tabElement).show();
+            }
+        }
+
+        // Atualizar a URL com a aba ativa
+        const tabButtons = document.querySelectorAll("#relatoriosTab button");
+        tabButtons.forEach(button => {
+            button.addEventListener("shown.bs.tab", function (event) {
+                const newTabId = event.target.id.replace("-tab", "");
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set("tab", newTabId);
+                window.history.pushState({ path: currentUrl.href }, ", newTabId, currentUrl.href);
+            });
+        });
+
+        // Função de impressão
+        window.imprimirRelatorioAtivo = function() {
+            window.print();
+        };
+
+        // Dados para o gráfico de movimentações (exemplo)
+        const ctx = document.getElementById("movimentacoesChart");
+        if (ctx) {
+            new Chart(ctx, {
+                type: "pie",
+                data: {
+                    labels: ["Entradas", "Saídas", "Vendas"],
+                    datasets: [{
+                        data: [
+                            parseFloat("{{ total_entradas|floatformat:2 }}".replace(",", ".")),
+                            parseFloat("{{ total_saidas|floatformat:2 }}".replace(",", ".")),
+                            parseFloat("{{ total_vendas|floatformat:2 }}".replace(",", "."))
+                        ],
+                        backgroundColor: [
+                            FluxoCaixa.config.chartColors.success,
+                            FluxoCaixa.config.chartColors.danger,
+                            FluxoCaixa.config.chartColors.info
+                        ],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: "top",
+                        },
+                        title: {
+                            display: true,
+                            text: "Visão Geral Financeira"
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

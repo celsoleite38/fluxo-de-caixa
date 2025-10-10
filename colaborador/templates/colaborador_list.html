@@ -1,0 +1,66 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h2>Gestão de Colaboradores</h2>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="{% url 'colaborador:colaborador_create' %}" class="btn btn-primary">
+        + Novo Colaborador
+    </a>
+    
+    <div class="alert alert-info">
+        <strong>Limite:</strong> {{ colaboradores.count }} / {{ user_limit.max_users }} colaboradores
+        <span class="badge bg-{% if vagas_disponiveis > 0 %}success{% else %}danger{% endif %} ms-2">
+            {{ vagas_disponiveis }} vaga(s) disponível(eis)
+        </span>
+        {% if colaboradores.count >= user_limit.max_users %}
+            <a href="{% url 'colaborador:request_more_users' %}" class="btn btn-warning btn-sm ms-2">
+                Solicitar Mais Vagas
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Usuário</th>
+            <th>Email</th>
+            <th>Nome</th>
+            <th>Data de Registro</th>
+            <th>Último Login</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for colaborador in colaboradores %}
+        <tr>
+            <td>{{ colaborador.usuario_colaborador.username }}</td>
+            <td>{{ colaborador.usuario_colaborador.email }}</td>
+            <td>{{ colaborador.usuario_colaborador.first_name }} {{ colaborador.usuario_colaborador.last_name }}</td>
+            <td>{{ colaborador.data_criacao|date:"d/m/Y" }}</td>
+            <td>{{ colaborador.usuario_colaborador.last_login|date:"d/m/Y H:i"|default:"Nunca logou" }}</td>
+            <td>
+    
+            <td>
+                <a href="{% url 'colaborador:gerenciar_permissoes_colaborador' colaborador.id %}" class="btn btn-sm btn-warning">Permissões</a>
+                <a href="{% url 'colaborador:colaborador_edit' colaborador.id %}" class="btn btn-sm btn-warning">Editar</a>
+                <a href="{% url 'colaborador:colaborador_delete' colaborador.id %}" class="btn btn-sm btn-danger">Excluir</a>
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="6" class="text-center">Nenhum colaborador cadastrado</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Estatísticas -->
+<div class="mt-4 p-3 bg-light rounded">
+    <h5>Estatísticas:</h5>
+    <p>Total de colaboradores: <strong>{{ colaboradores.count }}</strong></p>
+    <p>Limite disponível: <strong>{{ user_limit.max_users }}</strong></p>
+    <p>Você pode adicionar mais <strong>{{ vagas_disponiveis }}</strong> colaboradores</p>
+</div>
+{% endblock %}

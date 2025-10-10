@@ -1,0 +1,84 @@
+<!-- Estatísticas de Pagamento -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-pie fa-3x text-primary mb-3"></i>
+                <h4>Distribuição por Forma de Pagamento</h4>
+                <p class="text-muted">Análise completa das formas de pagamento utilizadas</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <i class="fas fa-receipt fa-3x mb-3"></i>
+                <h4>Total em Vendas</h4>
+                <p class="h2">R$ {{ total_vendas|intcomma }}</p>
+                <p>{{ qtd_vendas }} transações</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Formas de Pagamento -->
+<div class="card">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>Detalhamento por Forma de Pagamento</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Forma de Pagamento</th>
+                        <th class="text-end">Quantidade</th>
+                        <th class="text-end">Valor Total</th>
+                        <th class="text-end">Percentual</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stats in vendas_por_forma_pagamento %}
+                    <tr>
+                        <td>
+                            {% if stats.forma_pagamento %}
+                                {% for valor, label in FORMAS_PAGAMENTO %}
+                                    {% if valor == stats.forma_pagamento %}
+                                        <i class="fas 
+                                            {% if valor == 'dinheiro' %}fa-money-bill-wave 
+                                            {% elif valor == 'cartao_credito' %}fa-credit-card 
+                                            {% elif valor == 'cartao_debito' %}fa-credit-card 
+                                            {% elif valor == 'pix' %}fa-qrcode 
+                                            {% elif valor == 'transferencia' %}fa-exchange-alt 
+                                            {% else %}fa-money-bill{% endif %} 
+                                            me-2"></i>{{ label }}
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <i class="fas fa-question-circle me-2"></i>Não informado
+                            {% endif %}
+                        </td>
+                        <td class="text-end">{{ stats.quantidade }}</td>
+                        <td class="text-end fw-bold">R$ {{ stats.total|floatformat:2 }}</td>
+                        <td class="text-end">
+                            {% if total_vendas > 0 %}
+                                {% widthratio stats.total total_vendas 100 as percentual %}
+                                <span class="badge bg-info">{{ percentual|floatformat:1 }}%</span>
+                            {% else %}
+                                <span class="badge bg-secondary">0%</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">
+                            <i class="fas fa-credit-card fa-3x mb-2"></i><br>
+                            Nenhuma venda encontrada
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

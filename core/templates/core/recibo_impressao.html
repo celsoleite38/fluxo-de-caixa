@@ -1,0 +1,162 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        .recibo-print, .recibo-print * {
+            visibility: visible;
+        }
+        .recibo-print {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+        .no-print {
+            display: none !important;
+        }
+        @page {
+            size: A5;
+            margin: 0.5cm;
+        }
+    }
+    
+    .recibo-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .recibo-header {
+        text-align: center;
+        border-bottom: 2px dashed #ccc;
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .recibo-info {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+    
+    .recibo-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+    
+    .recibo-table th, .recibo-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    
+    .recibo-total {
+        text-align: right;
+        font-weight: bold;
+        font-size: 1.2em;
+        margin-top: 20px;
+    }
+    
+    .recibo-footer {
+        margin-top: 40px;
+        text-align: center;
+        border-top: 2px dashed #ccc;
+        padding-top: 15px;
+        font-size: 0.9em;
+        color: #666;
+    }
+    
+    .btn-print {
+        margin: 20px auto;
+        display: block;
+        width: 200px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container no-print">
+    <div class="d-flex justify-content-between mb-4">
+        <a href="javascript:history.back()" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Voltar
+        </a>
+        <button onclick="window.print()" class="btn btn-primary">
+            <i class="fas fa-print"></i> Imprimir Recibo
+        </button>
+    </div>
+</div>
+
+<div class="recibo-container recibo-print">
+    <div class="recibo-header">
+        <h2>RECIBO DE VENDA</h2>
+        <p>Sistema de Vendas</p>
+    </div>
+    
+    <div class="recibo-info">
+        <div>
+            <p><strong>Cliente:</strong> {{ nota.cliente }}</p>
+            <p><strong>Data Venda:</strong> {{ nota.data|date:"d/m/Y H:i" }}</p>
+        </div>
+        <div>
+            <p><strong>Vendedor:</strong> 
+                {% if nota.usuario_executante %}
+                    {{ nota.usuario_executante.get_full_name }}
+                {% else %}
+                    {{ nota.usuario.get_full_name }}
+                {% endif %}
+            </p>
+            <p><strong>N° Venda:</strong> {{ nota.id|stringformat:"06d" }}</p>
+        </div>
+    </div>
+    
+    <table class="recibo-table">
+        <thead>
+            <tr>
+                <th>Produto</th>
+                <th>Qtd.</th>
+                <th>Preço Unit.</th>
+                <th>Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in itens %}
+            <tr>
+                <td>{{ item.produto.nome }}</td>
+                <td>{{ item.quantidade }}</td>
+                <td>R$ {{ item.preco_unitario|floatformat:2 }}</td>
+                <td>R$ {{ item.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div class="recibo-total">
+        <p>TOTAL: R$ {{ nota.total|floatformat:2 }}</p>
+    </div>
+    
+    <div class="recibo-info">
+        <div>
+            <p><strong>Data Emissão:</strong> {{ data_emissao|date:"d/m/Y H:i" }}</p>
+        </div>
+    </div>
+    
+    <div class="recibo-footer">
+        <p>Obrigado pela preferência!</p>
+        <p>Este recibo não tem valor fiscal</p>
+    </div>
+</div>
+
+<script>
+// Auto-imprimir se necessário
+window.onload = function() {
+    // Se quiser auto-imprimir ao abrir a página, descomente:
+    // setTimeout(function(){ window.print(); }, 500);
+};
+</script>
+{% endblock %}

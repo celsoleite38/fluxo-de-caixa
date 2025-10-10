@@ -1,0 +1,337 @@
+{% extends 'core/base.html' %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}Dashboard{% endblock %}
+
+
+{% block content %}
+<!-- Estatísticas Principais -->
+<div class="row mb-4">
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card stats-card hover-lift">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-success me-3">
+                        <i class="fas fa-arrow-up"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h3 class="stats-number text-success">R$ {{ entradas_mes|floatformat:2 }}</h3>
+                        <p class="stats-label mb-0">Entradas do Mês</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card stats-card hover-lift">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-danger me-3">
+                        <i class="fas fa-arrow-down"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h3 class="stats-number text-danger">R$ {{ saidas_mes|floatformat:2 }}</h3>
+                        <p class="stats-label mb-0">Saídas do Mês</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-4">
+        <div class="card stats-card hover-lift">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon {% if saldo_mes >= 0 %}bg-primary{% else %}bg-warning{% endif %} me-3">
+                        <i class="fas fa-balance-scale"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h3 class="stats-number {% if saldo_mes >= 0 %}text-primary{% else %}text-warning{% endif %}">
+                            R$ {{ saldo_mes|floatformat:2 }}
+                        </h3>
+                        <p class="stats-label mb-0">Saldo do Mês</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ações Rápidas -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-gradient">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>
+                    Ações Rápidas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <a href="{% url 'criar_nota_venda' %}" class="btn btn-primary btn-lg w-100 hover-lift">
+                            <i class="fas fa-file-invoice me-2"></i>
+                            Nova Venda
+                        </a>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <a href="{% url 'adicionar_movimentacao' %}" class="btn btn-success btn-lg w-100 hover-lift">
+                            <i class="fas fa-plus me-2"></i>
+                            Nova Entrada
+                        </a>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <a href="{% url 'relatorios' %}" class="btn btn-info btn-lg w-100 hover-lift">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            Relatórios
+                        </a>
+                    </div>
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <a href="{% url 'estoque' %}" class="btn btn-warning btn-lg w-100 hover-lift">
+                            <i class="fas fa-boxes me-2"></i>
+                            Estoque
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Movimentações do Dia -->
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="card fade-in">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-day me-2"></i>
+                    Movimentações de Hoje - {{ data_hoje|date:"d/m/Y" }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Resumo do Dia -->
+                <div class="row mb-4">
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center py-3">
+                                <div class="d-flex align-items-center justify-content-center mb-2">
+                                    <i class="fas fa-arrow-up me-2"></i>
+                                    <h6 class="mb-0">Entradas Hoje</h6>
+                                </div>
+                                <h4 class="mb-0">R$ {{ entradas_hoje|floatformat:2 }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body text-center py-3">
+                                <div class="d-flex align-items-center justify-content-center mb-2">
+                                    <i class="fas fa-arrow-down me-2"></i>
+                                    <h6 class="mb-0">Saídas Hoje</h6>
+                                </div>
+                                <h4 class="mb-0">R$ {{ saidas_hoje|floatformat:2 }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card {% if saldo_hoje >= 0 %}bg-primary{% else %}bg-warning{% endif %} text-white">
+                            <div class="card-body text-center py-3">
+                                <div class="d-flex align-items-center justify-content-center mb-2">
+                                    <i class="fas fa-balance-scale me-2"></i>
+                                    <h6 class="mb-0">Saldo Hoje</h6>
+                                </div>
+                                <h4 class="mb-0">R$ {{ saldo_hoje|floatformat:2 }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista de Movimentações do Dia -->
+                <h6 class="mb-3">
+                    <i class="fas fa-list me-2"></i>
+                    Últimas Movimentações de Hoje:
+                </h6>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-clock me-1"></i> Hora</th>
+                                <th><i class="fas fa-file-alt me-1"></i> Descrição</th>
+                                <th><i class="fas fa-dollar-sign me-1"></i> Valor</th>
+                                <th><i class="fas fa-tag me-1"></i> Tipo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mov in movimentacoes_hoje %}
+                            <tr>
+                                <td>
+                                    <span class="badge badge-info">
+                                        {{ mov.hora|time:"H:i" }}
+                                    </span>
+                                </td>
+                                <td>{{ mov.descricao }}</td>
+                                <td class="{% if mov.tipo == 'E' %}text-success{% else %}text-danger{% endif %} fw-bold">
+                                    {% if mov.tipo == 'E' %}+{% else %}-{% endif %}R$ {{ mov.valor|floatformat:2 }}
+                                </td>
+                                <td>
+                                    <span class="badge {% if mov.tipo == 'E' %}badge-success{% else %}badge-danger{% endif %}">
+                                        {% if mov.tipo == 'E' %}
+                                            <i class="fas fa-arrow-up me-1"></i>
+                                        {% else %}
+                                            <i class="fas fa-arrow-down me-1"></i>
+                                        {% endif %}
+                                        {{ mov.get_tipo_display }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">
+                                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                    Nenhuma movimentação hoje
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Produtos com Baixo Estoque -->
+    <div class="col-lg-4 mb-4">
+        <div class="card fade-in">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Estoque Baixo
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if produtos_baixo_estoque %}
+                    <div class="list-group list-group-flush">
+                        {% for produto in produtos_baixo_estoque %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-0">
+                            <div>
+                                <h6 class="mb-1">{{ produto.nome }}</h6>
+                                <small class="text-muted">Estoque crítico</small>
+                            </div>
+                            <span class="badge badge-danger">
+                                {{ produto.quantidade }} un.
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="mt-3">
+                        <a href="{% url 'estoque' %}" class="btn btn-warning btn-sm w-100">
+                            <i class="fas fa-boxes me-2"></i>
+                            Ver Estoque Completo
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h6 class="text-success">Estoque OK!</h6>
+                        <p class="text-muted mb-0">Nenhum produto com estoque baixo</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfico de Tendências (Placeholder para futuras implementações) -->
+<div class="row">
+    <div class="col-12">
+        <div class="card fade-in">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Resumo Financeiro
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-success">{{ movimentacoes_hoje|length }}</h4>
+                            <p class="text-muted mb-0">Movimentações Hoje</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-primary">R$ {{ entradas_mes|add:saidas_mes|floatformat:2 }}</h4>
+                            <p class="text-muted mb-0">Volume Total (Mês)</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h4 class="text-info">{{ produtos_baixo_estoque|length }}</h4>
+                            <p class="text-muted mb-0">Produtos em Alerta</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="{% if saldo_mes >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if saldo_mes >= 0 %}+{% endif %}{{ saldo_mes|floatformat:0 }}%
+                        </h4>
+                        <p class="text-muted mb-0">Performance do Mês</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Adicionar animações aos cards de estatísticas
+    const statsCards = document.querySelectorAll('.stats-card');
+    statsCards.forEach((card, index) => {
+        card.style.animationDelay = `${index * 0.1}s`;
+        card.classList.add('slide-in-left');
+    });
+    
+    // Adicionar efeito de contagem aos números
+    const statsNumbers = document.querySelectorAll('.stats-number');
+    statsNumbers.forEach(number => {
+        const finalValue = parseFloat(number.textContent.replace('R$ ', '').replace(',', ''));
+        if (!isNaN(finalValue)) {
+            animateNumber(number, 0, finalValue, 1000);
+        }
+    });
+});
+
+function animateNumber(element, start, end, duration) {
+    const startTime = performance.now();
+    const isNegative = end < 0;
+    const absEnd = Math.abs(end);
+    
+    function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        const current = start + (absEnd - start) * progress;
+        const displayValue = isNegative ? -current : current;
+        
+        if (element.textContent.includes('R$')) {
+            element.textContent = `R$ ${displayValue.toFixed(2)}`;
+        } else {
+            element.textContent = Math.round(displayValue);
+        }
+        
+        if (progress < 1) {
+            requestAnimationFrame(update);
+        }
+    }
+    
+    requestAnimationFrame(update);
+}
+</script>
+{% endblock %}

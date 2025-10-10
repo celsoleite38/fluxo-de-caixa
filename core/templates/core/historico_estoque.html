@@ -1,0 +1,115 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4><i class="bi bi-clock-history"></i> Histórico Completo de Estoque</h4>
+    </div>
+    <div class="card-body">
+        <!-- Filtros -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="tipoFilter">Filtrar por tipo:</label>
+                    <select class="form-control" id="tipoFilter" onchange="filtrarHistorico()">
+                        <option value="todos">Todos os tipos</option>
+                        {% for valor, label in tipos_movimento %}
+                            <option value="{{ valor }}" {% if request.GET.tipo == valor %}selected{% endif %}>
+                                {{ label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="produtoFilter">Filtrar por produto:</label>
+                    <select class="form-control" id="produtoFilter" onchange="filtrarHistorico()">
+                        <option value="todos">Todos os produtos</option>
+                        {% for produto in produtos %}
+                            <option value="{{ produto.id }}" {% if request.GET.produto == produto.id|stringformat:"s" %}selected{% endif %}>
+                                {{ produto.nome }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Produto</th>
+                    <th>Quantidade</th>
+                    <th>Tipo</th>
+                    <th>Usuário</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for movimento in movimentos %}
+                <tr>
+                    <td>{{ movimento.data|date:"d/m/Y H:i" }}</td>
+                    <td>{{ movimento.produto.nome }}</td>
+                    <td class="{% if movimento.tipo == 'saida' %}text-danger{% else %}text-success{% endif %}">
+                        {% if movimento.tipo == 'saida' %}-{% else %}+{% endif %}{{ movimento.quantidade }}
+                    </td>
+                    <td>
+                        {% if movimento.tipo == 'cadastro' %}
+                            <span class="badge bg-info">Cadastro Inicial</span>
+                        {% elif movimento.tipo == 'entrada' %}
+                            <span class="badge bg-success">Entrada Avulsa</span>
+                        {% else %}
+                            <span class="badge bg-danger">Saída</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                         {% if movimento.usuario %}
+                            {{ movimento.usuario.get_full_name }}
+                            {% if movimento.usuario != movimento.produto.usuario %}
+                                <br><small class="text-muted">(Colaborador)</small>
+                            {% endif %}
+                        {% else %}
+                            Sistema
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center">Nenhum movimento registrado</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="mt-3">
+            <a href="{% url 'estoque' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Voltar para o Estoque
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+function filtrarHistorico() {
+    const tipo = document.getElementById('tipoFilter').value;
+    const produto = document.getElementById('produtoFilter').value;
+    
+    let url = '{% url "historico_estoque" %}?';
+    
+    if (tipo !== 'todos') {
+        url += 'tipo=' + tipo + '&';
+    }
+    
+    if (produto !== 'todos') {
+        url += 'produto=' + produto + '&';
+    }
+    
+    // Remover o último & se existir
+    if (url.endsWith('&')) {
+        url = url.slice(0, -1);
+    }
+    
+    window.location.href = url;
+}
+</script>
+{% endblock %}
