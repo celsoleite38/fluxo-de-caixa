@@ -67,7 +67,7 @@ class Movimentacao(models.Model):
     def __str__(self):
         return f"{self.descricao} ({self.get_tipo_display()}) - R${self.valor}"
 
-# models.py
+# models.pyf
 class NotaVenda(models.Model):
     FORMA_PAGAMENTO_CHOICES = [
         ('dinheiro', 'Dinheiro'),

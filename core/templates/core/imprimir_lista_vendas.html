@@ -1,0 +1,361 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="no-print mb-3">
+    <div class="d-flex justify-content-between align-items-center">
+        <h2>Imprimir Lista de Vendas</h2>
+        <div>
+            <button onclick="window.print()" class="btn btn-success">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
+            <a href="{% url 'lista_todas_vendas' %}?{{ request.GET.urlencode }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> Visualize o relatório abaixo e clique em "Imprimir" para gerar o documento.
+    </div>
+</div>
+
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #000;
+        }
+        
+        .print-container {
+            margin: 0;
+            padding: 0;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #333;
+        }
+        
+        .empresa-nome {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .empresa-dados {
+            font-size: 11px;
+            margin-bottom: 10px;
+        }
+        
+        .titulo-relatorio {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        
+        .info-filtros {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 11px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        
+        .table th {
+            background-color: #343a40 !important;
+            color: white !important;
+            padding: 8px;
+            text-align: left;
+            font-size: 11px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .table td {
+            padding: 6px;
+            border: 1px solid #dee2e6;
+            font-size: 10px;
+        }
+        
+        .table-striped tbody tr:nth-child(odd) {
+            background-color: #f8f9fa !important;
+        }
+        
+        .status-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: bold;
+        }
+        
+        .status-finalizada { background-color: #d4edda; color: #155724; }
+        .status-aberta { background-color: #fff3cd; color: #856404; }
+        .status-cancelada { background-color: #f8d7da; color: #721c24; }
+        
+        .resumo {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .resumo h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+        
+        .resumo p {
+            margin: 2px 0;
+            font-size: 11px;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 10px;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+            padding-top: 10px;
+        }
+        
+        .no-break {
+            page-break-inside: avoid;
+        }
+    }
+
+    /* Estilos para visualização na tela */
+    @media screen {
+        .print-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 210mm;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #333;
+        }
+        
+        .empresa-nome {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .empresa-dados {
+            font-size: 11px;
+            margin-bottom: 10px;
+        }
+        
+        .titulo-relatorio {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        
+        .info-filtros {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 11px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        
+        .table th {
+            background-color: #343a40;
+            color: white;
+            padding: 8px;
+            text-align: left;
+            font-size: 11px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .table td {
+            padding: 6px;
+            border: 1px solid #dee2e6;
+            font-size: 10px;
+        }
+        
+        .table-striped tbody tr:nth-child(odd) {
+            background-color: #f8f9fa;
+        }
+        
+        .status-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: bold;
+        }
+        
+        .status-finalizada { background-color: #d4edda; color: #155724; }
+        .status-aberta { background-color: #fff3cd; color: #856404; }
+        .status-cancelada { background-color: #f8d7da; color: #721c24; }
+        
+        .resumo {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .resumo h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+        
+        .resumo p {
+            margin: 2px 0;
+            font-size: 11px;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 10px;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+            padding-top: 10px;
+        }
+    }
+</style>
+
+<div class="print-container">
+    <!-- Cabeçalho da Empresa -->
+    <div class="header">
+        <div class="empresa-nome">{{ empresa_nome|default:"MINHA EMPRESSA" }}</div>
+        <div class="empresa-dados">
+            {{ empresa_endereco|default:"Rua Exemplo, 123 - Centro" }} | 
+            {{ empresa_telefone|default:"(11) 99999-9999" }} | 
+            {{ empresa_email|default:"contato@empresa.com" }}<br>
+            CNPJ: {{ empresa_cnpj|default:"00.000.000/0001-00" }}
+        </div>
+        <div class="titulo-relatorio">RELATÓRIO DE VENDAS</div>
+    </div>
+
+    <!-- Informações dos Filtros -->
+    <div class="info-filtros">
+        <strong>Período:</strong> 
+        {% if data_inicio and data_fim %}
+            {{ data_inicio }} à {{ data_fim }}
+        {% elif data_inicio %}
+            A partir de {{ data_inicio }}
+        {% elif data_fim %}
+            Até {{ data_fim }}
+        {% else %}
+            Todos os períodos
+        {% endif %}
+        
+        | <strong>Status:</strong> {{ status_filtro|default:"Todos" }}
+        
+        | <strong>Vendedor:</strong> {{ vendedor_filtro|default:"Todos" }}
+        
+        | <strong>Data de emissão:</strong> {{ data_emissao }}
+    </div>
+
+    <!-- Tabela de Vendas -->
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>N° Venda</th>
+                <th>Data</th>
+                <th>Cliente</th>
+                <th>Status</th>
+                <th>Total</th>
+                <th>Vendedor</th>
+                <th>Forma Pag.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for venda in vendas %}
+            <tr>
+                <td>#{{ venda.id|stringformat:"06d" }}</td>
+                <td>{{ venda.data|date:"d/m/Y H:i" }}</td>
+                <td>{{ venda.cliente }}</td>
+                <td>
+                    <span class="status-badge 
+                        {% if venda.status == 'finalizada' %}status-finalizada
+                        {% elif venda.status == 'cancelada' %}status-cancelada
+                        {% else %}status-aberta{% endif %}">
+                        {{ venda.get_status_display }}
+                    </span>
+                </td>
+                <td>R$ {{ venda.total_com_desconto|default:venda.total|floatformat:2 }}</td>
+                <td>
+                    {% if venda.usuario_executante %}
+                        {{ venda.usuario_executante.get_full_name }}
+                    {% else %}
+                        {{ venda.usuario.get_full_name }}
+                    {% endif %}
+                </td>
+                <td>{{ venda.get_forma_pagamento_display|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center">Nenhuma venda encontrada</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Resumo -->
+    <div class="resumo no-break">
+        <h4>RESUMO</h4>
+        <p><strong>Total de Vendas:</strong> {{ total_vendas_count }}</p>
+        <p><strong>Valor Total:</strong> R$ {{ total_vendas_valor|floatformat:2 }}</p>
+        <p><strong>Vendas Finalizadas:</strong> {{ vendas_finalizadas }} (R$ {{ valor_finalizadas|floatformat:2 }})</p>
+        <p><strong>Vendas Abertas:</strong> {{ vendas_abertas }} (R$ {{ valor_abertas|floatformat:2 }})</p>
+        {% if vendas_canceladas > 0 %}
+        <p><strong>Vendas Canceladas:</strong> {{ vendas_canceladas }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Rodapé -->
+    <div class="footer">
+        Relatório gerado em {{ data_emissao }} por {{ usuario.get_full_name }} - Página 1
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Configuração para impressão
+    const originalTitle = document.title;
+    document.title = "Relatório de Vendas - {{ empresa_nome|default:'MINHA EMPRESSA' }}";
+    
+    window.addEventListener('afterprint', function() {
+        document.title = originalTitle;
+    });
+});
+</script>
+{% endblock %}

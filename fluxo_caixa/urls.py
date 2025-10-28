@@ -46,4 +46,5 @@ urlpatterns = [
     path('accounts/register/', views.register, name='register'),
 
     path('vendas/todas/', views.lista_todas_vendas, name='lista_todas_vendas'),
+    path('vendas/imprimir-lista/', views.imprimir_lista_vendas, name='imprimir_lista_vendas'),
 ]

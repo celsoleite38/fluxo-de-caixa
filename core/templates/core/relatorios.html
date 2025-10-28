@@ -515,14 +515,15 @@
                                              <td>{% if venda.cliente %}{{ venda.cliente.nome }}{% else %}-{% endif %}</td>
                                             <td>
                                                 <ul class="list-unstyled mb-0">
-                                                    {% for item in venda.itens.all %}
-                                                        <li>{{ item.produto.nome }} (x{{ item.quantidade }})</li>
+                                                    {% for item in venda.itemvenda_set.all %}
+                                                        <li>{{ item.produto.nome }} (x{{ item.quantidade }}) - R$ {{ item.preco_unitario }}</li>
                                                     {% empty %}
-                                                        <li>Nenhum produto</li>
+                                                        <li class="text-danger">Nenhum produto encontrado (Venda ID: {{ venda.id }})</li>
                                                     {% endfor %}
                                                 </ul>
                                             </td>
-                                            <td class="text-end fw-bold text-primary">R$ {{ venda.valor_total|floatformat:2 }}</td>
+                                            <td>R$ {{ venda.total_com_desconto|default:venda.total|floatformat:2 }}</td>
+                                            
                                             <td>
                                                 <span class="badge bg-secondary">
                                                     {{ venda.get_forma_pagamento_display }}
@@ -581,7 +582,7 @@
                 const newTabId = event.target.id.replace("-tab", "");
                 const currentUrl = new URL(window.location.href);
                 currentUrl.searchParams.set("tab", newTabId);
-                window.history.pushState({ path: currentUrl.href }, ", newTabId, currentUrl.href);
+                window.history.pushState({ path: currentUrl.href }, "", newTabId, currentUrl.href);
             });
         });
 

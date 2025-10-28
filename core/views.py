@@ -42,13 +42,11 @@ def dashboard(request):
     
     # Totais do DIA (adicionado)
     entradas_hoje = movimentacoes_hoje.filter(tipo='E').aggregate(
-        total=Sum('valor')
-    )['total'] or 0
+        total=Sum('valor'))['total'] or 0
     
     saidas_hoje = movimentacoes_hoje.filter(tipo='S').aggregate(
-        total=Sum('valor')
-    )['total'] or 0
-    
+        total=Sum('valor'))['total'] or 0
+
     saldo_hoje = entradas_hoje - saidas_hoje
     
     # Entradas e saídas do mês (mantido)
@@ -594,13 +592,13 @@ def cancelar_venda(request, nota_id):
     
     if nota.status == 'finalizada':
         messages.error(request, 'Não é possível cancelar uma venda já finalizada!')
-        return redirect('dashboard')
+        return redirect('lista_todas_vendas')
     
     # Deletar a nota de venda (os itens serão deletados em cascade)
     nota.delete()
     
     messages.success(request, 'Venda cancelada com sucesso!')
-    return redirect('dashboard')
+    return redirect('lista_todas_vendas')
 
 
 @login_required
@@ -801,7 +799,7 @@ def lista_todas_vendas(request):
         Q(id=usuario_referencia.id) | Q(id__in=vendedores_ids)
     ).distinct()
     
-    vendas = NotaVenda.objects.filter(usuario=usuario_referencia)
+    vendas = NotaVenda.objects.filter(usuario=usuario_referencia).prefetch_related('itemvenda_set__produto')
     
     # Aplicar filtros
     status_filter = request.GET.get('status')
@@ -809,7 +807,7 @@ def lista_todas_vendas(request):
     data_inicio = request.GET.get('data_inicio')
     data_fim = request.GET.get('data_fim')
     
-    print(f"DEBUG: Status={status_filter}, Vendedor={vendedor_filter}")
+    
     
     if status_filter:
         vendas = vendas.filter(status=status_filter)
@@ -866,3 +864,92 @@ def editar_perfil(request):
         'title': 'Editar Perfil'
     })
 
+@login_required
+def imprimir_lista_vendas(request):
+    from .utils import get_usuario_referencia
+    from django.contrib.auth.models import User
+    from django.db.models import Q, Count, Sum
+    from datetime import datetime
+    
+    usuario_referencia = get_usuario_referencia(request)
+    
+    # Query base
+    vendas = NotaVenda.objects.filter(usuario=usuario_referencia).prefetch_related('itemvenda_set__produto')
+    
+    # Aplicar os mesmos filtros da view principal
+    status_filter = request.GET.get('status')
+    vendedor_filter = request.GET.get('vendedor')
+    data_inicio = request.GET.get('data_inicio')
+    data_fim = request.GET.get('data_fim')
+    
+    if status_filter:
+        vendas = vendas.filter(status=status_filter)
+        status_filtro = dict(NotaVenda.STATUS_CHOICES).get(status_filter, status_filter)
+    else:
+        status_filtro = "Todos"
+    
+    if vendedor_filter:
+        vendas = vendas.filter(
+            Q(usuario_executante_id=vendedor_filter) | 
+            Q(usuario_id=vendedor_filter, usuario_executante__isnull=True)
+        )
+        try:
+            vendedor = User.objects.get(id=vendedor_filter)
+            vendedor_filtro = vendedor.get_full_name()
+        except User.DoesNotExist:
+            vendedor_filtro = vendedor_filter
+    else:
+        vendedor_filtro = "Todos"
+    
+    if data_inicio:
+        vendas = vendas.filter(data__gte=data_inicio)
+    
+    if data_fim:
+        data_fim_obj = datetime.strptime(data_fim, '%Y-%m-%d')
+        data_fim_obj = data_fim_obj.replace(hour=23, minute=59, second=59)
+        vendas = vendas.filter(data__lte=data_fim_obj)
+    
+    # Ordenar
+    vendas = vendas.order_by('-data')
+    
+    # Estatísticas detalhadas
+    total_vendas_count = vendas.count()
+    total_vendas_valor = vendas.aggregate(total=Sum('total_com_desconto'))['total'] or 0
+    
+    # Estatísticas por status
+    vendas_finalizadas = vendas.filter(status='finalizada').count()
+    valor_finalizadas = vendas.filter(status='finalizada').aggregate(
+        total=Sum('total_com_desconto'))['total'] or 0
+    
+    vendas_abertas = vendas.filter(status='aberta').count()
+    valor_abertas = vendas.filter(status='aberta').aggregate(
+        total=Sum('total_com_desconto'))['total'] or 0
+    
+    context = {
+        'vendas': vendas,
+        'total_vendas_count': total_vendas_count,
+        'total_vendas_valor': total_vendas_valor,
+        'vendas_finalizadas': vendas_finalizadas,
+        'valor_finalizadas': valor_finalizadas,
+        'vendas_abertas': vendas_abertas,
+        'valor_abertas': valor_abertas,
+        
+        # Filtros aplicados
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
+        'status_filtro': status_filtro,
+        'vendedor_filtro': vendedor_filtro,
+        
+        # Dados da empresa (você pode personalizar esses)
+        'empresa_nome': "SUA EMPRESSA LTDA",
+        'empresa_endereco': "Rua Principal, 123 - Centro",
+        'empresa_telefone': "(11) 99999-9999",
+        'empresa_email': "contato@empresa.com",
+        'empresa_cnpj': "00.000.000/0001-00",
+        
+        # Data de emissão
+        'data_emissao': datetime.now().strftime("%d/%m/%Y %H:%M"),
+        'usuario': request.user,
+    }
+    
+    return render(request, 'core/imprimir_lista_vendas.html', context)
