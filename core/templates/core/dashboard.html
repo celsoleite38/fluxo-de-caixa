@@ -16,7 +16,7 @@
                         <i class="fas fa-arrow-up"></i>
                     </div>
                     <div class="flex-grow-1">
-                        <h3 class=" stats-number text-success">R$ {{ entradas_mes }}</h3>
+                        <h3 class=" stats-number text-success">R$ {{ entradas_mes_fmt }}</h3>
                         <p class="stats-label mb-0">Entradas do Mês</p>
                     </div>
                 </div>
@@ -32,7 +32,7 @@
                         <i class="fas fa-arrow-down"></i>
                     </div>
                     <div class="flex-grow-1">
-                        <h3 class="stats-number text-danger">R$ {{ saidas_mes }}</h3>
+                        <h3 class="stats-number text-danger">R$ {{ saidas_mes_fmt }}</h3>
                         <p class="stats-label mb-0">Saídas do Mês</p>
                     </div>
                 </div>
@@ -49,7 +49,7 @@
                     </div>
                     <div class="flex-grow-1">
                         <h3 class=" stats-number {% if saldo_mes >= 0 %}text-primary{% else %}text-warning{% endif %}">
-                            R$ {{ saldo_mes }}
+                            R$ {{ saldo_mes_fmt }}
                         </h3>
                         <p class="stats-label mb-0">Saldo do Mês</p>
                     </div>
@@ -281,52 +281,4 @@
     </div>
 </div>
 
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Adicionar animações aos cards de estatísticas
-    const statsCards = document.querySelectorAll('.stats-card');
-    statsCards.forEach((card, index) => {
-        card.style.animationDelay = `${index * 0.1}s`;
-        card.classList.add('slide-in-left');
-    });
-    
-    // Adicionar efeito de contagem aos números
-    const statsNumbers = document.querySelectorAll('.stats-number');
-    statsNumbers.forEach(number => {
-        const finalValue = parseFloat(number.textContent.replace('R$ ', '').replace(',', ''));
-        if (!isNaN(finalValue)) {
-            animateNumber(number, 0, finalValue, 1000);
-        }
-    });
-});
-
-function animateNumber(element, start, end, duration) {
-    const startTime = performance.now();
-    const isNegative = end < 0;
-    const absEnd = Math.abs(end);
-    
-    function update(currentTime) {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        
-        const current = start + (absEnd - start) * progress;
-        const displayValue = isNegative ? -current : current;
-        
-        if (element.textContent.includes('R$')) {
-            element.textContent = `R$ ${displayValue.toFixed(2)}`;
-        } else {
-            element.textContent = Math.round(displayValue);
-        }
-        
-        if (progress < 1) {
-            requestAnimationFrame(update);
-        }
-    }
-    
-    requestAnimationFrame(update);
-}
-</script>
 {% endblock %}

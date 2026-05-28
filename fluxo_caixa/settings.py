@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'core',
     'django.contrib.humanize',
     'colaborador',
+    'logs',
 ]
 
 MIDDLEWARE = [
@@ -41,6 +42,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'colaborador.middleware.BloqueioColaboradorMiddleware',
+    #'logs.middleware.LogsMiddleware',
 ]
 
 ROOT_URLCONF = 'fluxo_caixa.urls'

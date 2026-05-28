@@ -1,4 +1,3 @@
-
 # Create your views here.
 from django.db.models.aggregates import Count
 from django.shortcuts import render, redirect, get_object_or_404
@@ -7,6 +6,8 @@ from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib import messages
 from django.db.models import Sum
 from datetime import datetime, timedelta, timezone, date, time
+
+from core.utils import get_usuario_referencia
 from .forms import CategoriaForm, EditarPerfilForm, EntradaEstoqueForm, UsuarioForm, CustomPasswordChangeForm, MovimentacaoForm, ProdutoForm, NotaVendaForm, ItemVendaForm, CategoriaForm
 from .models import ItemVenda, Movimentacao, Categoria, Produto, NotaVenda, MovimentoEstoque
 from django.db.models.signals import post_save
@@ -20,12 +21,20 @@ from django.contrib.auth.forms import PasswordChangeForm
 #from dateutil.relativedelta import relativedelta
 from django.template.loader import render_to_string
 from django.http import HttpResponse, JsonResponse
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from colaborador.models import Colaborador
 import uuid
 
 from .models import Perfil
+from logs.models import LogSistema  # IMPORTAÇÃO DO APP DE LOGS ADICIONADA
 
+def formatar_brl(valor):
+    """Converte 15.84 → '15,84' | 1584.00 → '1.584,00'"""
+    v = Decimal(valor).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    partes = f"{v:,.2f}".split('.')
+    inteiro = partes[0].replace(',', '.')
+    decimal = partes[1]
+    return f"{inteiro},{decimal}"
 
 @login_required
 def dashboard(request):
@@ -33,66 +42,80 @@ def dashboard(request):
     usuario_referencia = get_usuario_referencia(request)
     hoje = date.today()
     inicio_mes = hoje.replace(day=1)
-    
-    # Movimentações do DIA (adicionado)
+
+    # Movimentações do dia
     movimentacoes_hoje = Movimentacao.objects.filter(
         usuario=usuario_referencia,
         data=hoje
     ).order_by('-data')
-    
-    # Totais do DIA (adicionado)
-    entradas_hoje = movimentacoes_hoje.filter(tipo='E').aggregate(
-        total=Sum('valor'))['total'] or 0
-    
-    saidas_hoje = movimentacoes_hoje.filter(tipo='S').aggregate(
-        total=Sum('valor'))['total'] or 0
+
+    # Totais do dia
+    entradas_hoje = movimentacoes_hoje.filter(
+        tipo='E').aggregate(total=Sum('valor'))['total'] or 0
+
+    saidas_hoje = movimentacoes_hoje.filter(
+        tipo='S').aggregate(total=Sum('valor'))['total'] or 0
 
     saldo_hoje = entradas_hoje - saidas_hoje
-    
-    # Entradas e saídas do mês (mantido)
+
+    # Totais do mês
     entradas_mes = Movimentacao.objects.filter(
-        tipo='E', 
+        tipo='E',
         data__gte=inicio_mes,
         usuario=usuario_referencia
     ).aggregate(total=Sum('valor'))['total'] or 0
-    
+
     saidas_mes = Movimentacao.objects.filter(
-        tipo='S', 
+        tipo='S',
         data__gte=inicio_mes,
         usuario=usuario_referencia
     ).aggregate(total=Sum('valor'))['total'] or 0
-    
+
     saldo_mes = entradas_mes - saidas_mes
-    
-    # Vendas do DIA (adicionado - se aplicável)
+
+    # Vendas do dia
     vendas_hoje = NotaVenda.objects.filter(
         usuario=usuario_referencia,
         data=hoje
     )
-    
     total_vendas_hoje = vendas_hoje.aggregate(total=Sum('total'))['total'] or 0
     qtd_vendas_hoje = vendas_hoje.count()
-    
-    # Produtos com baixo estoque (mantido)
-    produtos_baixo_estoque = Produto.objects.filter(usuario=usuario_referencia, quantidade__lte=5)
-    
+
+    # Produtos com baixo estoque
+    produtos_baixo_estoque = Produto.objects.filter(
+        usuario=usuario_referencia,
+        quantidade__lte=5
+    )
+
     context = {
-        # Novos dados do dia
-        'movimentacoes_hoje': movimentacoes_hoje,
+        # Dia — valores brutos (para lógica no template, ex: if saldo < 0)
         'entradas_hoje': entradas_hoje,
         'saidas_hoje': saidas_hoje,
         'saldo_hoje': saldo_hoje,
-        'vendas_hoje': vendas_hoje,
-        'total_vendas_hoje': total_vendas_hoje,
-        'qtd_vendas_hoje': qtd_vendas_hoje,
-        'data_hoje': hoje,
-        
-        # Dados do mês (mantidos)
+
+        # Dia — valores formatados (para exibição)
+        'entradas_hoje_fmt': formatar_brl(entradas_hoje),
+        'saidas_hoje_fmt': formatar_brl(saidas_hoje),
+        'saldo_hoje_fmt': formatar_brl(abs(saldo_hoje)),
+
+        # Mês — valores brutos
         'entradas_mes': entradas_mes,
         'saidas_mes': saidas_mes,
         'saldo_mes': saldo_mes,
-        
-        # Outros dados
+
+        # Mês — valores formatados
+        'entradas_mes_fmt': formatar_brl(entradas_mes),
+        'saidas_mes_fmt': formatar_brl(saidas_mes),
+        'saldo_mes_fmt': formatar_brl(abs(saldo_mes)),
+
+        # Vendas
+        'vendas_hoje': vendas_hoje,
+        'total_vendas_hoje': formatar_brl(total_vendas_hoje),
+        'qtd_vendas_hoje': qtd_vendas_hoje,
+        'data_hoje': hoje,
+
+        # Outros
+        'movimentacoes_hoje': movimentacoes_hoje,
         'produtos_baixo_estoque': produtos_baixo_estoque,
     }
     return render(request, 'core/dashboard.html', context)
@@ -126,6 +149,15 @@ def adicionar_movimentacao(request):
             movimentacao = form.save(commit=False)
             movimentacao.usuario = usuario_referencia
             movimentacao.save()
+
+            # LOG ADICIONADO: Cadastro de Movimentação de Caixa
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='C',
+                modulo='Fluxo de Caixa',
+                descricao=f"Adicionou movimentação tipo '{movimentacao.get_tipo_display()}' no valor de R$ {movimentacao.valor}"
+            )
+
             messages.success(request, 'Movimentação adicionada com sucesso!')
             return redirect('dashboard')
     else:
@@ -136,11 +168,20 @@ def adicionar_movimentacao(request):
 @login_required
 def editar_movimentacao(request, pk):
     usuario_referencia = get_usuario_referencia(request)
-    movimentacao = get_object_or_404(Movimentacao, pk=pk, usuario=usuario_referenciar)
+    movimentacao = get_object_or_404(Movimentacao, pk=pk, usuario=usuario_referencia)
     if request.method == 'POST':
         form = MovimentacaoForm(request.POST, instance=movimentacao)
         if form.is_valid():
             form.save()
+
+            # LOG ADICIONADO: Edição de Movimentação de Caixa
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Fluxo de Caixa',
+                descricao=f"Editou a movimentação ID {pk} para o valor de R$ {movimentacao.valor}"
+            )
+
             messages.success(request, 'Movimentação atualizada com sucesso!')
             return redirect('dashboard')
     else:
@@ -153,11 +194,21 @@ def excluir_movimentacao(request, pk):
     usuario_referencia = get_usuario_referencia(request)
     movimentacao = get_object_or_404(Movimentacao, pk=pk, usuario=usuario_referencia)
     if request.method == 'POST':
+        valor_removido = movimentacao.valor
+        tipo_removido = movimentacao.get_tipo_display()
         movimentacao.delete()
+
+        # LOG ADICIONADO: Remoção de Movimentação de Caixa
+        LogSistema.objects.create(
+            usuario=request.user,
+            acao='D',
+            modulo='Fluxo de Caixa',
+            descricao=f"Excluiu movimentação ID {pk} ({tipo_removido}) no valor de R$ {valor_removido}"
+        )
+
         messages.success(request, 'Movimentação excluída com sucesso!')
         return redirect('dashboard')
     return render(request, 'core/confirmar_remocao_item.html', {'object': movimentacao})
-
 
 
 @login_required
@@ -261,8 +312,6 @@ def relatorios(request):
     return render(request, 'core/relatorios.html', context)
 
 
-
-
 def imprimir_entradas(request):
     usuario_referencia = get_usuario_referencia(request)
     entradas = Movimentacao.objects.filter(tipo='E', usuario=usuario_referencia).order_by("-data")
@@ -274,6 +323,7 @@ def imprimir_entradas(request):
     })
 
 def imprimir_saidas(request):
+    usuario_referencia = get_usuario_referencia(request)
     # Use Movimentacao filtrando por tipo 'S' (Saída)
     saidas = Movimentacao.objects.filter(tipo='S', usuario=usuario_referencia).order_by("-data")
     total = saidas.aggregate(total=Sum('valor'))['total'] or 0
@@ -316,6 +366,14 @@ def adicionar_produto(request):
                 tipo='cadastro',
                 usuario=request.user  # Usar request.user em vez de usuario_referencia
             )
+
+            # LOG ADICIONADO: Cadastro de Produto
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='C',
+                modulo='Produtos / Estoque',
+                descricao=f"Cadastrou o produto '{produto.nome}' com quantidade inicial de {produto.quantidade}"
+            )
             
             messages.success(request, 'Produto adicionado com sucesso!')
             return redirect('estoque')
@@ -331,7 +389,17 @@ def excluir_produto(request, id):
     produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
     
     try:
+        nome_produto = produto.nome
         produto.delete()
+
+        # LOG ADICIONADO: Remoção de Produto
+        LogSistema.objects.create(
+            usuario=request.user,
+            acao='D',
+            modulo='Produtos / Estoque',
+            descricao=f"Excluiu o produto '{nome_produto}' (ID: {id})"
+        )
+
         messages.success(request, 'Produto excluído com sucesso!')
     except Exception as e:
         messages.error(request, f'Erro ao excluir produto: {str(e)}')
@@ -348,6 +416,15 @@ def editar_produto(request, id):
         form = ProdutoForm(request.POST, instance=produto)
         if form.is_valid():
             form.save()
+
+            # LOG ADICIONADO: Edição de Produto
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Produtos / Estoque',
+                descricao=f"Editou informações do produto '{produto.nome}' (ID: {id})"
+            )
+
             messages.success(request, 'Produto atualizado com sucesso!')
             return redirect('estoque')
     else:
@@ -374,6 +451,14 @@ def entrada_estoque(request, id):
                 quantidade=quantidade,
                 tipo='entrada',  # Tipo diferente do cadastro inicial
                 usuario=request.user  # Usar request.user em vez de usuario_referencia
+            )
+
+            # LOG ADICIONADO: Entrada Manual de Estoque
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Produtos / Estoque',
+                descricao=f"Realizou entrada manual de {quantidade} unidades no estoque do produto '{produto.nome}'"
             )
             
             messages.success(request, f'{quantidade} unidades adicionadas ao estoque com sucesso!')
@@ -432,6 +517,15 @@ def criar_nota_venda(request):
             nota.usuario = usuario_referencia
             nota.usuario_executante = request.user
             nota.save()
+
+            # LOG ADICIONADO: Início de rascunho de venda
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='C',
+                modulo='Vendas',
+                descricao=f"Abriu uma nova nota de venda #{nota.id} para o cliente '{nota.cliente}'"
+            )
+
             messages.success(request, 'Nota de venda criada com sucesso!')
             return redirect('adicionar_item_venda', nota_id=nota.id)
         else:
@@ -476,6 +570,14 @@ def adicionar_item_venda(request, nota_id):
             # Atualizar total da nota
             nota.total = sum(item.subtotal for item in nota.itemvenda_set.all())
             nota.save()
+
+            # LOG ADICIONADO: Item adicionado à Venda
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Vendas',
+                descricao=f"Adicionou {item.quantidade}x do produto '{item.produto.nome}' à nota de venda #{nota.id}"
+            )
             
             messages.success(request, 'Item adicionado com sucesso!')
             return redirect('adicionar_item_venda', nota_id=nota.id)
@@ -499,7 +601,6 @@ def finalizar_venda(request, nota_id):
     from .utils import get_usuario_referencia
     usuario_referencia = get_usuario_referencia(request)
     nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=usuario_referencia)
-    
     
     itens = nota.itemvenda_set.all()
     if not itens.exists():
@@ -576,6 +677,14 @@ def finalizar_venda(request, nota_id):
             data=datetime.now().date(),
             usuario=usuario_referencia
         )
+
+        # LOG ADICIONADO: Venda Finalizada com Sucesso
+        LogSistema.objects.create(
+            usuario=request.user,
+            acao='U',
+            modulo='Vendas',
+            descricao=f"Finalizou a venda #{nota.id} para '{nota.cliente}'. Forma de Pgto: {forma_pagamento}. Total Líquido: R$ {nota.total_com_desconto}"
+        )
         
         messages.success(request, 'Venda finalizada com sucesso!')
         return redirect('dashboard')   
@@ -587,15 +696,24 @@ def finalizar_venda(request, nota_id):
 
 @login_required
 def cancelar_venda(request, nota_id):
-    #usuario_referencia = get_usuario_referencia(request)
     nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
     
     if nota.status == 'finalizada':
         messages.error(request, 'Não é possível cancelar uma venda já finalizada!')
         return redirect('lista_todas_vendas')
     
+    id_cancelado = nota.id
+    cliente_cancelado = nota.cliente
     # Deletar a nota de venda (os itens serão deletados em cascade)
     nota.delete()
+
+    # LOG ADICIONADO: Venda Cancelada
+    LogSistema.objects.create(
+        usuario=request.user,
+        acao='D',
+        modulo='Vendas',
+        descricao=f"Cancelou e excluiu o rascunho de venda #{id_cancelado} do cliente '{cliente_cancelado}'"
+    )
     
     messages.success(request, 'Venda cancelada com sucesso!')
     return redirect('lista_todas_vendas')
@@ -642,7 +760,7 @@ def aplicar_desconto_ajax(request):
     
     return JsonResponse({'success': False, 'error': 'Método não permitido'})
 
-# views.py
+
 @login_required
 def ver_nota_venda(request, nota_id):
     from .utils import get_usuario_referencia
@@ -653,7 +771,7 @@ def ver_nota_venda(request, nota_id):
     return render(request, 'core/nota_venda.html', {
         'nota': nota,
         'itens': itens,
-        'produtos': Produto.objects.all()  # ou sua query de produtos
+        'produtos': Produto.objects.all()
     })
 
 
@@ -677,12 +795,20 @@ def register(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
+
+            # LOG ADICIONADO: Registro de Novo Usuário
+            LogSistema.objects.create(
+                usuario=user,
+                acao='C',
+                modulo='Autenticação',
+                descricao=f"Novo usuário cadastrado e logado no sistema: {user.username}"
+            )
+
             messages.success(request, 'Cadastro realizado com sucesso!')
             return redirect('dashboard')
     else:
         form = UsuarioForm()
     return render(request, 'registration/register.html', {'form': form})
-
 
 
 @login_required
@@ -693,10 +819,18 @@ def change_password(request):
         if form.is_valid():
             user = form.save()
             update_session_auth_hash(request, user)
+
+            # LOG ADICIONADO: Alteração de Senha
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Autenticação',
+                descricao=f"Alterou a sua senha de acesso com sucesso."
+            )
+
             messages.success(request, 'Sua senha foi alterada com sucesso!')
             return redirect('dashboard')
         else:
-            
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"Erro no campo '{field}': {error}")
@@ -709,7 +843,6 @@ def change_password(request):
     })
 
 def lista_entradas(request):
-    
     movimentacoes = Movimentacao.objects.filter(
         tipo='E',
         usuario=usuario_referencia
@@ -764,11 +897,21 @@ def remover_item_venda(request, pk):
         
         # Remover o item e atualizar o total da nota
         nota = item.nota
+        nome_produto = item.produto.nome
+        qtd_removida = item.quantidade
         item.delete()
         
         # Recalcular o total da nota
         nota.total = sum(item.subtotal for item in nota.itemvenda_set.all())
         nota.save()
+
+        # LOG ADICIONADO: Item removido da Venda
+        LogSistema.objects.create(
+            usuario=request.user,
+            acao='D',
+            modulo='Vendas',
+            descricao=f"Removeu {qtd_removida}x do produto '{nome_produto}' da nota de venda #{nota.id}"
+        )
         
         messages.success(request, 'Item removido com sucesso!')
         return redirect('adicionar_item_venda', nota_id=nota.id)
@@ -777,6 +920,13 @@ def remover_item_venda(request, pk):
 
 @login_required
 def user_logout(request):
+    # LOG ADICIONADO: Log de Logout (inserido antes de limpar a sessão)
+    LogSistema.objects.create(
+        usuario=request.user,
+        acao='L',
+        modulo='Autenticação',
+        descricao=f"Usuário realizou logout (encerrou a sessão)."
+    )
     logout(request)
     return redirect('logout')
 
@@ -806,8 +956,6 @@ def lista_todas_vendas(request):
     vendedor_filter = request.GET.get('vendedor')
     data_inicio = request.GET.get('data_inicio')
     data_fim = request.GET.get('data_fim')
-    
-    
     
     if status_filter:
         vendas = vendas.filter(status=status_filter)
@@ -846,13 +994,22 @@ def lista_todas_vendas(request):
 @login_required
 def editar_perfil(request):
     usuario = request.user
-    perfil = Perfil.objects.first()  # assume que existe um perfil vinculado ao usuário
+    perfil = Perfil.objects.first()
 
     if request.method == 'POST':
         form = EditarPerfilForm(request.POST, request.FILES, instance=perfil)
         if form.is_valid():
             form.save()
-            messages.success(request, 'Perfil atualizado com sucesso!')
+
+            # LOG ADICIONADO: Edição de Perfil
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Configurações',
+                descricao=f"Atualizou as informações do perfil corporativo."
+            )
+
+            messages.success(request, 'Perfil updated com sucesso!')
             return redirect('dashboard')
         else:
             messages.error(request, 'Corrija os erros abaixo.')
@@ -940,7 +1097,7 @@ def imprimir_lista_vendas(request):
         'status_filtro': status_filtro,
         'vendedor_filtro': vendedor_filtro,
         
-        # Dados da empresa (você pode personalizar esses)
+        # Dados da empresa
         'empresa_nome': "SUA EMPRESSA LTDA",
         'empresa_endereco': "Rua Principal, 123 - Centro",
         'empresa_telefone': "(11) 99999-9999",
