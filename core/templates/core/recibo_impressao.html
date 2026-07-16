@@ -94,8 +94,17 @@
 
 <div class="recibo-container recibo-print">
     <div class="recibo-header">
+        {% if perfil_empresa and perfil_empresa.logotipo %}
+        <img src="{{ perfil_empresa.logotipo.url }}" style="max-height: 60px; margin-bottom: 8px;">
+        {% endif %}
         <h2>RECIBO DE VENDA</h2>
+        {% if perfil_empresa %}
+        <p style="margin: 2px 0;">{{ perfil_empresa.Empresas }}</p>
+        {% if perfil_empresa.CNPJ %}<p style="margin: 2px 0;">CNPJ: {{ perfil_empresa.CNPJ }}</p>{% endif %}
+        {% if perfil_empresa.telefone %}<p style="margin: 2px 0;">Tel: {{ perfil_empresa.telefone }}</p>{% endif %}
+        {% else %}
         <p>Sistema de Vendas</p>
+        {% endif %}
     </div>
     
     <div class="recibo-info">
@@ -127,7 +136,12 @@
         <tbody>
             {% for item in itens %}
             <tr>
-                <td>{{ item.produto.nome }}</td>
+                <td>
+                    {{ item.produto.nome }}
+                    {% if item.variacao %}
+                        <br><small>({{ item.variacao.descricao_variacao }})</small>
+                    {% endif %}
+                </td>
                 <td>{{ item.quantidade }}</td>
                 <td>R$ {{ item.preco_unitario|floatformat:2 }}</td>
                 <td>R$ {{ item.subtotal|floatformat:2 }}</td>

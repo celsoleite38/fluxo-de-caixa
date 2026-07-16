@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Orçamento #{{ orcamento.id|stringformat:"06d" }} - Cupom</title>
+    <style>
+        @media print {
+            @page { size: 80mm auto; margin: 2mm; }
+            body { font-family: 'Courier New', monospace; font-size: 11px; width: 76mm; margin: 0; padding: 2mm; }
+            .no-print { display: none !important; }
+        }
+        body { font-family: 'Courier New', monospace; font-size: 11px; width: 76mm; margin: 0 auto; padding: 5mm; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .line { border-top: 1px dashed #000; margin: 5px 0; }
+        .line-double { border-top: 3px double #000; margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        td, th { padding: 1px 0; }
+        .right { text-align: right; }
+        .btn-print { display: block; margin: 20px auto; padding: 10px 30px; font-size: 14px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button class="btn-print" onclick="window.print()">Imprimir Cupom</button>
+    </div>
+
+    {% if perfil_empresa and perfil_empresa.logotipo %}
+    <div class="center">
+        <img src="{{ perfil_empresa.logotipo.url }}" style="max-height: 40px;">
+    </div>
+    {% endif %}
+    <div class="center bold">
+        {% if perfil_empresa and perfil_empresa.Empresas %}{{ perfil_empresa.Empresas }}<br>{% endif %}
+        {% if perfil_empresa and perfil_empresa.CNPJ %}CNPJ: {{ perfil_empresa.CNPJ }}<br>{% endif %}
+        {% if perfil_empresa.telefone %}<p style="margin: 2px 0;">Tel: {{ perfil_empresa.telefone }}</p>{% endif %}
+    </div>
+    <div class="center bold">
+        ORÇAMENTO #{{ orcamento.id|stringformat:"06d" }}
+    </div>
+    <div class="center">{{ orcamento.get_status_display }}</div>
+
+    <div class="line"></div>
+
+    <div>
+        <span class="bold">Cliente:</span> {{ orcamento.cliente }}
+    </div>
+    <div>
+        <span class="bold">Data:</span> {{ orcamento.data|date:"d/m/Y H:i" }}
+    </div>
+    {% if orcamento.validade %}
+    <div>
+        <span class="bold">Validade:</span> {{ orcamento.validade|date:"d/m/Y" }}
+    </div>
+    {% endif %}
+    <div>
+        <span class="bold">Vendedor:</span> {{ orcamento.usuario.get_full_name|default:orcamento.usuario.username }}
+    </div>
+
+    <div class="line"></div>
+
+    <table>
+        {% for item in itens %}
+        <tr>
+            <td colspan="3">{{ item.quantidade }}x {{ item.produto.nome }}</td>
+        </tr>
+        {% if item.variacao %}
+        <tr>
+            <td></td>
+            <td colspan="2" style="font-size:10px">SKU: {{ item.variacao.sku }} ({{ item.variacao.descricao_variacao }})</td>
+        </tr>
+        {% endif %}
+        <tr>
+            <td></td>
+            <td class="right">{{ item.quantidade }} x R$ {{ item.preco_unitario|floatformat:2 }}</td>
+            <td class="right bold">R$ {{ item.subtotal|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="line-double"></div>
+
+    <table>
+        <tr>
+            <td class="bold">SUBTOTAL:</td>
+            <td class="right bold">R$ {{ orcamento.total|floatformat:2 }}</td>
+        </tr>
+        {% if orcamento.desconto > 0 %}
+        <tr>
+            <td class="bold">DESCONTO:</td>
+            <td class="right bold">- R$ {{ orcamento.desconto|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td class="bold">TOTAL:</td>
+            <td class="right bold">R$ {{ orcamento.total_com_desconto|floatformat:2 }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td class="bold">TOTAL:</td>
+            <td class="right bold">R$ {{ orcamento.total|floatformat:2 }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <div class="line-double"></div>
+
+    {% if orcamento.observacao %}
+    <div style="margin: 5px 0;">
+        <span class="bold">Obs:</span> {{ orcamento.observacao }}
+    </div>
+    <div class="line"></div>
+    {% endif %}
+
+    <div class="center" style="margin-top: 10px;">
+        <small>Orcamento gerado em {{ orcamento.data|date:"d/m/Y H:i" }}</small>
+    </div>
+</body>
+</html>

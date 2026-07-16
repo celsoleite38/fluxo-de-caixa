@@ -1,0 +1,79 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4><i class="fas fa-list me-2"></i>Valores: {{ tipo.nome }}</h4>
+        <a href="{% url 'tipo_variacao_list' %}" class="btn btn-light btn-sm">
+            <i class="fas fa-arrow-left"></i> Voltar
+        </a>
+    </div>
+    <div class="card-body">
+        <!-- Formulário para adicionar valor -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">Adicionar Valor</h6>
+            </div>
+            <div class="card-body">
+                <form method="post" class="row g-3 align-items-end">
+                    {% csrf_token %}
+                    <div class="col-md-8">
+                        <label for="id_valor" class="form-label">Valor</label>
+                        {{ form.valor }}
+                        {% if form.valor.errors %}
+                            <div class="text-danger">{{ form.valor.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-plus"></i> Adicionar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Lista de valores -->
+        {% if valores %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Valor</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for valor in valores %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td><span class="badge bg-primary fs-6">{{ valor.valor }}</span></td>
+                        <td>
+                            <form method="post" action="{% url 'valor_variacao_delete' valor.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger"
+                                        onclick="return confirm('Tem certeza que deseja excluir o valor \'{{ valor.valor }}\'?')">
+                                    <i class="fas fa-trash"></i> Excluir
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>{{ valores.count }}</strong> valor(es) cadastrado(s) para o tipo <strong>{{ tipo.nome }}</strong>.
+        </div>
+        {% else %}
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Nenhum valor cadastrado para este tipo. Adicione valores acima para poder usar esta variação nos produtos.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

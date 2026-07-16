@@ -1,0 +1,103 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4><i class="fas fa-exclamation-triangle text-warning me-2"></i>Estoque Baixo</h4>
+        <a href="{% url 'estoque' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Voltar ao Estoque
+        </a>
+    </div>
+    <div class="card-body">
+        <form method="GET" class="row g-3 mb-4">
+            <div class="col-md-4">
+                <label class="form-label">Limite de Estoque</label>
+                <select name="limite" class="form-select" onchange="this.form.submit()">
+                    <option value="3" {% if limite == 3 %}selected{% endif %}>Até 3 unidades</option>
+                    <option value="5" {% if limite == 5 %}selected{% endif %}>Até 5 unidades</option>
+                    <option value="10" {% if limite == 10 %}selected{% endif %}>Até 10 unidades</option>
+                    <option value="15" {% if limite == 15 %}selected{% endif %}>Até 15 unidades</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Última Movimentação</label>
+                <select name="dias" class="form-select" onchange="this.form.submit()">
+                    <option value="todas" {% if filtro_dias == 'todas' %}selected{% endif %}>Todas</option>
+                    <option value="7" {% if filtro_dias == '7' %}selected{% endif %}>Últimos 7 dias</option>
+                    <option value="15" {% if filtro_dias == '15' %}selected{% endif %}>Últimos 15 dias</option>
+                    <option value="30" {% if filtro_dias == '30' %}selected{% endif %}>Últimos 30 dias</option>
+                    <option value="60" {% if filtro_dias == '60' %}selected{% endif %}>Últimos 60 dias</option>
+                    <option value="90" {% if filtro_dias == '90' %}selected{% endif %}>Últimos 90 dias</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <span class="text-muted">
+                    <strong>{{ total }}</strong> item(ns) encontrado(s)
+                </span>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Produto</th>
+                        <th>SKU</th>
+                        <th>Estoque</th>
+                        <th>Última Movimentação</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in itens %}
+                    <tr class="{% if item.quantidade == 0 %}table-danger{% elif item.quantidade <= 3 %}table-warning{% endif %}">
+                        <td>
+                            <strong>{{ item.nome }}</strong>
+                            {% if item.variacao %}
+                                <br><small class="text-muted">{{ item.variacao }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.sku %}
+                                <code>{{ item.sku }}</code>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.quantidade == 0 %}
+                                <span class="badge bg-danger">Sem Estoque</span>
+                            {% elif item.quantidade <= 3 %}
+                                <span class="badge bg-warning text-dark">{{ item.quantidade }}</span>
+                            {% else %}
+                                <span class="badge bg-info">{{ item.quantidade }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.ultima_movimentacao %}
+                                {{ item.ultima_movimentacao|date:"d/m/Y H:i" }}
+                            {% else %}
+                                <span class="text-muted">Nunca movimentado</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ item.url }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i> Editar
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>
+                            Nenhum produto com estoque baixo encontrado.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

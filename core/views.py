@@ -5,20 +5,29 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib import messages
 from django.db.models import Sum
+from django.db.models import Q
 from datetime import datetime, timedelta, timezone, date, time
+from itertools import product as itertools_product
 
 from core.utils import get_usuario_referencia
-from .forms import CategoriaForm, EditarPerfilForm, EntradaEstoqueForm, UsuarioForm, CustomPasswordChangeForm, MovimentacaoForm, ProdutoForm, NotaVendaForm, ItemVendaForm, CategoriaForm
-from .models import ItemVenda, Movimentacao, Categoria, Produto, NotaVenda, MovimentoEstoque
+from .forms import (
+    CategoriaForm, EditarPerfilForm, EntradaEstoqueForm, UsuarioForm,
+    CustomPasswordChangeForm, MovimentacaoForm, ProdutoForm, NotaVendaForm,
+    ItemVendaForm, TipoVariacaoForm, ValorVariacaoForm, ProdutoVariacaoForm,
+    CorrecaoEstoqueForm, OrcamentoForm, ItemOrcamentoForm
+)
+from .models import (
+    ItemVenda, Movimentacao, Categoria, Produto, NotaVenda, MovimentoEstoque,
+    TipoVariacao, ValorVariacao, ProdutoVariacao, Orcamento, ItemOrcamento,
+    ConfigEstoqueBaixo
+)
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.db import models
-#from fluxo_caixa.core import models
-from django.utils import timezone 
+from django.utils import timezone
 
 from django.views.decorators.http import require_POST
 from django.contrib.auth.forms import PasswordChangeForm
-#from dateutil.relativedelta import relativedelta
 from django.template.loader import render_to_string
 from django.http import HttpResponse, JsonResponse
 from decimal import Decimal, ROUND_HALF_UP
@@ -26,10 +35,9 @@ from colaborador.models import Colaborador
 import uuid
 
 from .models import Perfil
-from logs.models import LogSistema  # IMPORTAÇÃO DO APP DE LOGS ADICIONADA
+from logs.models import LogSistema
 
 def formatar_brl(valor):
-    """Converte 15.84 → '15,84' | 1584.00 → '1.584,00'"""
     v = Decimal(valor).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     partes = f"{v:,.2f}".split('.')
     inteiro = partes[0].replace(',', '.')
@@ -43,13 +51,11 @@ def dashboard(request):
     hoje = date.today()
     inicio_mes = hoje.replace(day=1)
 
-    # Movimentações do dia
     movimentacoes_hoje = Movimentacao.objects.filter(
         usuario=usuario_referencia,
         data=hoje
     ).order_by('-data')
 
-    # Totais do dia
     entradas_hoje = movimentacoes_hoje.filter(
         tipo='E').aggregate(total=Sum('valor'))['total'] or 0
 
@@ -58,7 +64,6 @@ def dashboard(request):
 
     saldo_hoje = entradas_hoje - saidas_hoje
 
-    # Totais do mês
     entradas_mes = Movimentacao.objects.filter(
         tipo='E',
         data__gte=inicio_mes,
@@ -73,7 +78,6 @@ def dashboard(request):
 
     saldo_mes = entradas_mes - saidas_mes
 
-    # Vendas do dia
     vendas_hoje = NotaVenda.objects.filter(
         usuario=usuario_referencia,
         data=hoje
@@ -81,42 +85,99 @@ def dashboard(request):
     total_vendas_hoje = vendas_hoje.aggregate(total=Sum('total'))['total'] or 0
     qtd_vendas_hoje = vendas_hoje.count()
 
-    # Produtos com baixo estoque
-    produtos_baixo_estoque = Produto.objects.filter(
+    # Buscar configuracao de estoque baixo para esta empresa
+    from .models import ConfigEstoqueBaixo
+    config_estoque, _ = ConfigEstoqueBaixo.objects.get_or_create(
         usuario=usuario_referencia,
-        quantidade__lte=5
+        defaults={
+            'nome_empresa': usuario_referencia.get_full_name() or usuario_referencia.username,
+            'limite_estoque_baixo': 5,
+            'dias_movimentacao': 30,
+        }
+    )
+    limite = config_estoque.limite_estoque_baixo
+    dias_mov = config_estoque.dias_movimentacao
+
+    # Produtos com movimentacao nos ultimos N dias e estoque baixo
+    corte = hoje - timedelta(days=dias_mov)
+
+    # IDs de produtos sem grade que tiveram movimentacao recente
+    ids_com_movimento = MovimentoEstoque.objects.filter(
+        usuario=usuario_referencia,
+        variacao__isnull=True,
+        data__gte=corte
+    ).values_list('produto_id', flat=True).distinct()
+
+    produtos_sem_grade = Produto.objects.filter(
+        usuario=usuario_referencia,
+        tem_variacao=False,
+        quantidade__lte=limite
+    ).filter(
+        Q(pk__in=ids_com_movimento) | Q(quantidade=0)
     )
 
+    # IDs de variacoes que tiveram movimentacao recente
+    ids_var_movimento = MovimentoEstoque.objects.filter(
+        usuario=usuario_referencia,
+        variacao__isnull=False,
+        data__gte=corte
+    ).values_list('variacao_id', flat=True).distinct()
+
+    variacoes_baixo = ProdutoVariacao.objects.filter(
+        produto__usuario=usuario_referencia,
+        ativo=True,
+        quantidade__lte=limite
+    ).select_related('produto').filter(
+        Q(pk__in=ids_var_movimento) | Q(quantidade=0)
+    )
+
+    # Montar lista unica de itens com estoque baixo
+    itens_baixo_estoque = []
+
+    for p in produtos_sem_grade:
+        itens_baixo_estoque.append({
+            'nome': p.nome,
+            'sku': None,
+            'variacao': None,
+            'quantidade': p.quantidade,
+            'produto_id': p.pk,
+            'url': f'/estoque/editar/{p.pk}/',
+        })
+
+    for v in variacoes_baixo:
+        itens_baixo_estoque.append({
+            'nome': v.produto.nome,
+            'sku': v.sku,
+            'variacao': v.descricao_variacao,
+            'quantidade': v.quantidade,
+            'produto_id': v.produto.pk,
+            'url': f'/produto/{v.produto.pk}/variacao/',
+        })
+
+    # Ordenar por quantidade (menor primeiro)
+    itens_baixo_estoque.sort(key=lambda x: x['quantidade'])
+    itens_baixo_top5 = itens_baixo_estoque[:5]
+
     context = {
-        # Dia — valores brutos (para lógica no template, ex: if saldo < 0)
         'entradas_hoje': entradas_hoje,
         'saidas_hoje': saidas_hoje,
         'saldo_hoje': saldo_hoje,
-
-        # Dia — valores formatados (para exibição)
         'entradas_hoje_fmt': formatar_brl(entradas_hoje),
         'saidas_hoje_fmt': formatar_brl(saidas_hoje),
         'saldo_hoje_fmt': formatar_brl(abs(saldo_hoje)),
-
-        # Mês — valores brutos
         'entradas_mes': entradas_mes,
         'saidas_mes': saidas_mes,
         'saldo_mes': saldo_mes,
-
-        # Mês — valores formatados
         'entradas_mes_fmt': formatar_brl(entradas_mes),
         'saidas_mes_fmt': formatar_brl(saidas_mes),
         'saldo_mes_fmt': formatar_brl(abs(saldo_mes)),
-
-        # Vendas
         'vendas_hoje': vendas_hoje,
         'total_vendas_hoje': formatar_brl(total_vendas_hoje),
         'qtd_vendas_hoje': qtd_vendas_hoje,
         'data_hoje': hoje,
-
-        # Outros
         'movimentacoes_hoje': movimentacoes_hoje,
-        'produtos_baixo_estoque': produtos_baixo_estoque,
+        'itens_baixo_estoque': itens_baixo_top5,
+        'qtd_itens_baixo': len(itens_baixo_estoque),
     }
     return render(request, 'core/dashboard.html', context)
 
@@ -150,7 +211,6 @@ def adicionar_movimentacao(request):
             movimentacao.usuario = usuario_referencia
             movimentacao.save()
 
-            # LOG ADICIONADO: Cadastro de Movimentação de Caixa
             LogSistema.objects.create(
                 usuario=request.user,
                 acao='C',
@@ -174,7 +234,6 @@ def editar_movimentacao(request, pk):
         if form.is_valid():
             form.save()
 
-            # LOG ADICIONADO: Edição de Movimentação de Caixa
             LogSistema.objects.create(
                 usuario=request.user,
                 acao='U',
@@ -198,7 +257,6 @@ def excluir_movimentacao(request, pk):
         tipo_removido = movimentacao.get_tipo_display()
         movimentacao.delete()
 
-        # LOG ADICIONADO: Remoção de Movimentação de Caixa
         LogSistema.objects.create(
             usuario=request.user,
             acao='D',
@@ -220,16 +278,13 @@ def relatorios(request):
     
     vendas = NotaVenda.objects.filter(usuario=usuario_referencia, status='finalizada')
     
-    # Tratamento dos filtros
     data_inicio = request.GET.get('data_inicio')
     data_fim = request.GET.get('data_fim')
     forma_pagamento = request.GET.get('forma_pagamento', '')
     
-    # Aplicar filtros de data
     if data_inicio:
         try:
             data_inicio_obj = datetime.strptime(data_inicio, '%Y-%m-%d').date()
-            # Início do dia (00:00:00)
             inicio_datetime = timezone.make_aware(
                 datetime.combine(data_inicio_obj, time.min)
             )
@@ -249,36 +304,29 @@ def relatorios(request):
         except ValueError:
             messages.error(request, "Data fim inválida")
 
-    # Aplicar filtro de forma de pagamento
     if forma_pagamento:
         vendas = vendas.filter(forma_pagamento=forma_pagamento)
 
     entradas = movimentacoes.filter(tipo='E').order_by('-data')
     saidas = movimentacoes.filter(tipo='S').order_by('-data')
     
-    
     total_entradas = entradas.aggregate(total=Sum('valor'))['total'] or 0
     total_saidas = saidas.aggregate(total=Sum('valor'))['total'] or 0
     saldo = total_entradas - total_saidas
     
-   
     total_vendas = vendas.aggregate(total=Sum('total_com_desconto'))['total'] or 0
     total_vendas_bruto = vendas.aggregate(total=Sum('total'))['total'] or 0
     total_descontos = total_vendas_bruto - total_vendas
     qtd_vendas = vendas.count()
     
-    # Estatísticas por forma de pagamento - CORRIGIDO
-    # Primeiro pegar todas as vendas COM forma de pagamento
     vendas_com_forma = vendas.exclude(forma_pagamento__isnull=True)
     vendas_por_forma = vendas_com_forma.values('forma_pagamento').annotate(
         total=Sum('total_com_desconto'),
         quantidade=Count('id')
     ).order_by('-total')
     
-    # Converter para lista para manipulação
     vendas_por_forma_list = list(vendas_por_forma)
     
-    # Verificar vendas SEM forma de pagamento
     vendas_sem_forma = vendas.filter(forma_pagamento__isnull=True)
     if vendas_sem_forma.exists():
         total_sem_forma = vendas_sem_forma.aggregate(
@@ -324,7 +372,6 @@ def imprimir_entradas(request):
 
 def imprimir_saidas(request):
     usuario_referencia = get_usuario_referencia(request)
-    # Use Movimentacao filtrando por tipo 'S' (Saída)
     saidas = Movimentacao.objects.filter(tipo='S', usuario=usuario_referencia).order_by("-data")
     total = saidas.aggregate(total=Sum('valor'))['total'] or 0
     
@@ -337,11 +384,64 @@ def imprimir_saidas(request):
 @login_required
 def lista_produtos(request):
     from .utils import get_usuario_referencia
+    from django.db.models import Q, Sum, Count
     
     usuario_referencia = get_usuario_referencia(request)
-    produtos = Produto.objects.filter(usuario=usuario_referencia)
     
-    return render(request, 'core/estoque.html', {'produtos': produtos})
+    busca = request.GET.get('busca', '').strip()
+    ordenacao = request.GET.get('ordenacao', 'nome')
+    variacao_valor = request.GET.get('variacao_valor', '')
+    
+    produtos = Produto.objects.filter(
+        usuario=usuario_referencia
+    ).prefetch_related('variacoes', 'variacoes__valores', 'variacoes__valores__tipo')
+    
+    if busca:
+        produtos = produtos.filter(
+            Q(nome__icontains=busca) | Q(sku_base__icontains=busca)
+        )
+    
+    if variacao_valor:
+        produtos = produtos.filter(
+            Q(tem_variacao=False) |
+            Q(tem_variacao=True, variacoes__valores__pk=variacao_valor, variacoes__ativo=True)
+        ).distinct()
+    
+    if ordenacao == 'estoque_asc':
+        from django.db.models import Case, When, Value, IntegerField
+        produtos = produtos.annotate(
+            estoque_order=Case(
+                When(tem_variacao=False, then='quantidade'),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        ).order_by('estoque_order', 'nome')
+    elif ordenacao == 'estoque_desc':
+        from django.db.models import Case, When, Value, IntegerField
+        produtos = produtos.annotate(
+            estoque_order=Case(
+                When(tem_variacao=False, then='quantidade'),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        ).order_by('-estoque_order', 'nome')
+    elif ordenacao == 'preco':
+        produtos = produtos.order_by('preco', 'nome')
+    else:
+        produtos = produtos.order_by('nome')
+    
+    from .models import ValorVariacao
+    valores_disponiveis = ValorVariacao.objects.filter(
+        tipo__produtos__usuario=usuario_referencia
+    ).select_related('tipo').order_by('tipo__nome', 'valor')
+    
+    return render(request, 'core/estoque.html', {
+        'produtos': produtos,
+        'busca': busca,
+        'ordenacao': ordenacao,
+        'variacao_valor': variacao_valor,
+        'valores_disponiveis': valores_disponiveis,
+    })
 
 @login_required
 def adicionar_produto(request):
@@ -351,23 +451,21 @@ def adicionar_produto(request):
     usuario_referencia = get_usuario_referencia(request)
     
     if request.method == 'POST':
-        form = ProdutoForm(request.POST)
+        form = ProdutoForm(request.POST, usuario=usuario_referencia)
         if form.is_valid():
             produto = form.save(commit=False)
             produto.usuario = usuario_referencia
-            
-            # Salvar o produto primeiro para obter um ID
             produto.save()
+            form.save_m2m()
             
-            # Registrar a entrada inicial no histórico de estoque
-            MovimentoEstoque.objects.create(
-                produto=produto,
-                quantidade=produto.quantidade,
-                tipo='cadastro',
-                usuario=request.user  # Usar request.user em vez de usuario_referencia
-            )
+            if not produto.tem_variacao:
+                MovimentoEstoque.objects.create(
+                    produto=produto,
+                    quantidade=produto.quantidade,
+                    tipo='cadastro',
+                    usuario=request.user
+                )
 
-            # LOG ADICIONADO: Cadastro de Produto
             LogSistema.objects.create(
                 usuario=request.user,
                 acao='C',
@@ -376,6 +474,8 @@ def adicionar_produto(request):
             )
             
             messages.success(request, 'Produto adicionado com sucesso!')
+            if produto.tem_variacao:
+                return redirect('produto_variacoes', produto_pk=produto.pk)
             return redirect('estoque')
     else:
         form = ProdutoForm(usuario=usuario_referencia)
@@ -383,7 +483,7 @@ def adicionar_produto(request):
     return render(request, 'core/produto_form.html', {'form': form})
 
 @login_required
-@require_POST  # Garante que só aceita requisições POST
+@require_POST
 def excluir_produto(request, id):
     usuario_referencia = get_usuario_referencia(request)
     produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
@@ -392,7 +492,6 @@ def excluir_produto(request, id):
         nome_produto = produto.nome
         produto.delete()
 
-        # LOG ADICIONADO: Remoção de Produto
         LogSistema.objects.create(
             usuario=request.user,
             acao='D',
@@ -413,11 +512,10 @@ def editar_produto(request, id):
     produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
     
     if request.method == 'POST':
-        form = ProdutoForm(request.POST, instance=produto)
+        form = ProdutoForm(request.POST, instance=produto, usuario=usuario_referencia)
         if form.is_valid():
             form.save()
 
-            # LOG ADICIONADO: Edição de Produto
             LogSistema.objects.create(
                 usuario=request.user,
                 acao='U',
@@ -428,15 +526,20 @@ def editar_produto(request, id):
             messages.success(request, 'Produto atualizado com sucesso!')
             return redirect('estoque')
     else:
-        form = ProdutoForm(instance=produto)
+        form = ProdutoForm(instance=produto, usuario=usuario_referencia)
     
-    return render(request, 'core/produto_form.html', {'form': form, 'editar': True})
+    return render(request, 'core/produto_form.html', {
+        'form': form, 'editar': True, 'produto': produto
+    })
 
 @login_required
 def entrada_estoque(request, id):
     from .utils import get_usuario_referencia
     usuario_referencia = get_usuario_referencia(request)
     produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
+    
+    if produto.tem_variacao:
+        return redirect('produto_variacoes', produto_pk=produto.pk)
     
     if request.method == 'POST':
         form = EntradaEstoqueForm(request.POST)
@@ -445,15 +548,13 @@ def entrada_estoque(request, id):
             produto.quantidade += quantidade
             produto.save()
             
-            # Registrar o movimento no histórico
             MovimentoEstoque.objects.create(
                 produto=produto,
                 quantidade=quantidade,
-                tipo='entrada',  # Tipo diferente do cadastro inicial
-                usuario=request.user  # Usar request.user em vez de usuario_referencia
+                tipo='entrada',
+                usuario=request.user
             )
 
-            # LOG ADICIONADO: Entrada Manual de Estoque
             LogSistema.objects.create(
                 usuario=request.user,
                 acao='U',
@@ -477,15 +578,12 @@ def historico_estoque(request):
     from .utils import get_usuario_referencia
     usuario_referencia = get_usuario_referencia(request)
     
-    # Buscar todos os movimentos de estoque dos produtos do usuário
     movimentos = MovimentoEstoque.objects.filter(
         produto__usuario=usuario_referencia
-    ).select_related('produto', 'usuario').order_by('-data')
+    ).select_related('produto', 'variacao', 'usuario').order_by('-data')
     
-    # Obter lista de produtos para o filtro
     produtos = Produto.objects.filter(usuario=usuario_referencia)
     
-    # Aplicar filtros se existirem
     tipo_filter = request.GET.get('tipo')
     produto_filter = request.GET.get('produto')
     
@@ -518,7 +616,6 @@ def criar_nota_venda(request):
             nota.usuario_executante = request.user
             nota.save()
 
-            # LOG ADICIONADO: Início de rascunho de venda
             LogSistema.objects.create(
                 usuario=request.user,
                 acao='C',
@@ -529,7 +626,6 @@ def criar_nota_venda(request):
             messages.success(request, 'Nota de venda criada com sucesso!')
             return redirect('adicionar_item_venda', nota_id=nota.id)
         else:
-            # Debug: mostrar erros do formulário
             print("Erros do formulário:", form.errors)
             messages.error(request, 'Erro no formulário. Verifique os dados.')
     else:
@@ -543,57 +639,68 @@ def adicionar_item_venda(request, nota_id):
     
     usuario_referencia = get_usuario_referencia(request)
     
-    # Buscar a nota pelo usuario_referencia (dono) E permitir se o executante for o colaborador
     nota = get_object_or_404(
         NotaVenda, 
         pk=nota_id, 
-        usuario=usuario_referencia  # Dono dos dados (usuário principal)
+        usuario=usuario_referencia
     )
     
-    # Verificar se o usuário atual tem permissão para acessar
-    if nota.usuario_executante != request.user and nota.usuario != request.user:
-        raise PermissionDenied("Você não tem permissão para acessar esta nota")
-    
     if request.method == 'POST':
-        form = ItemVendaForm(request.POST, usuario=usuario_referencia)  # Usar usuario_referencia
+        form = ItemVendaForm(request.POST, usuario=usuario_referencia)
         if form.is_valid():
             item = form.save(commit=False)
             item.nota = nota
-            item.preco_unitario = item.produto.preco
             
-            if item.produto.quantidade < item.quantidade:
-                messages.error(request, f'Estoque insuficiente para {item.produto.nome}. Disponível: {item.produto.quantidade}')
-                return redirect('adicionar_item_venda', nota_id=nota.id)
+            variacao = form.cleaned_data.get('variacao')
+            if variacao:
+                item.variacao = variacao
+                item.preco_unitario = variacao.preco_efetivo
+                if variacao.quantidade < item.quantidade:
+                    messages.error(request, f'Estoque insuficiente para {item.produto.nome} ({variacao.sku}). Disponível: {variacao.quantidade}')
+                    return redirect('adicionar_item_venda', nota_id=nota.id)
+            else:
+                item.preco_unitario = item.produto.preco
+                if item.produto.quantidade < item.quantidade:
+                    messages.error(request, f'Estoque insuficiente para {item.produto.nome}. Disponível: {item.produto.quantidade}')
+                    return redirect('adicionar_item_venda', nota_id=nota.id)
             
             item.save()
             
-            # Atualizar total da nota
             nota.total = sum(item.subtotal for item in nota.itemvenda_set.all())
             nota.save()
 
-            # LOG ADICIONADO: Item adicionado à Venda
+            desc_item = item.produto.nome
+            if variacao:
+                desc_item += f" [{variacao.sku}]"
+
             LogSistema.objects.create(
                 usuario=request.user,
                 acao='U',
                 modulo='Vendas',
-                descricao=f"Adicionou {item.quantidade}x do produto '{item.produto.nome}' à nota de venda #{nota.id}"
+                descricao=f"Adicionou {item.quantidade}x do produto '{desc_item}' à nota de venda #{nota.id}"
             )
             
             messages.success(request, 'Item adicionado com sucesso!')
             return redirect('adicionar_item_venda', nota_id=nota.id)
     else:
-        form = ItemVendaForm(usuario=usuario_referencia)  # Usar usuario_referencia
+        form = ItemVendaForm(usuario=usuario_referencia)
     
-    # Carregar produtos do usuario_referencia
-    produtos = Produto.objects.filter(usuario=usuario_referencia, quantidade__gt=0)
+    produtos = Produto.objects.filter(usuario=usuario_referencia)
+    produtos_disponiveis = []
+    for p in produtos:
+        if p.tem_variacao:
+            if p.variacoes.filter(quantidade__gt=0, ativo=True).exists():
+                produtos_disponiveis.append(p)
+        elif p.quantidade > 0:
+            produtos_disponiveis.append(p)
     
-    itens_venda = nota.itemvenda_set.select_related('produto').all()
+    itens_venda = nota.itemvenda_set.select_related('produto', 'variacao').all()
     
     return render(request, 'core/nota_venda.html', {
         'nota': nota,
         'form': form,
         'itens': itens_venda,  
-        'produtos': produtos,
+        'produtos': produtos_disponiveis,
     })
 
 @login_required
@@ -608,25 +715,27 @@ def finalizar_venda(request, nota_id):
         return redirect('nota_venda', nota_id=nota_id)
     
     for item in itens:
-        if item.produto.quantidade < item.quantidade:
-            messages.error(request, f'Estoque insuficiente para {item.produto.nome}. Disponível: {item.produto.quantidade}, Solicitado: {item.quantidade}')
-            return redirect('adicionar_item_venda', nota_id=nota_id)
+        if item.variacao:
+            if item.variacao.quantidade < item.quantidade:
+                messages.error(request, f'Estoque insuficiente para {item.produto.nome} [{item.variacao.sku}]. Disponível: {item.variacao.quantidade}, Solicitado: {item.quantidade}')
+                return redirect('adicionar_item_venda', nota_id=nota_id)
+        else:
+            if item.produto.quantidade < item.quantidade:
+                messages.error(request, f'Estoque insuficiente para {item.produto.nome}. Disponível: {item.produto.quantidade}, Solicitado: {item.quantidade}')
+                return redirect('adicionar_item_venda', nota_id=nota_id)
     
     if request.method == 'POST':
-        # Processar formulário de pagamento
         forma_pagamento = request.POST.get('forma_pagamento')
         desconto_percentual = request.POST.get('desconto_percentual', '0')
         desconto_valor = request.POST.get('desconto_valor', '0')
         
-        # Validar forma de pagamento
         if not forma_pagamento:
             messages.error(request, 'Selecione uma forma de pagamento!')
-            return render(request, 'finalizar_venda.html', {
+            return render(request, 'core/finalizar_venda.html', {
                 'nota': nota,
                 'itens': itens
             })
         
-        # Converter para Decimal
         try:
             desconto_percentual = Decimal(desconto_percentual)
             desconto_valor = Decimal(desconto_valor)
@@ -634,21 +743,18 @@ def finalizar_venda(request, nota_id):
             desconto_percentual = Decimal(0)
             desconto_valor = Decimal(0)
         
-        # Calcular desconto final
         if desconto_percentual > 0:
             desconto_final = (nota.total * desconto_percentual) / 100
         else:
             desconto_final = desconto_valor
         
-        # Validar desconto
         if desconto_final > nota.total:
             messages.error(request, 'Desconto não pode ser maior que o total da venda!')
-            return render(request, 'finalizar_venda.html', {
+            return render(request, 'core/finalizar_venda.html', {
                 'nota': nota,
                 'itens': itens
             })
         
-        # Atualizar nota
         nota.desconto = desconto_final
         nota.total_com_desconto = nota.total - desconto_final
         nota.forma_pagamento = forma_pagamento
@@ -656,20 +762,27 @@ def finalizar_venda(request, nota_id):
         nota.save()
         
         for item in itens:
-            # Atualizar estoque dos produtos
-            produto = item.produto
-            produto.quantidade -= item.quantidade
-            produto.save()
-            
-            # Registrar movimento de saída de estoque
-            MovimentoEstoque.objects.create(
-                produto=produto,
-                quantidade=item.quantidade,
-                tipo='saida',
-                usuario=usuario_referencia
-            )
+            if item.variacao:
+                item.variacao.quantidade -= item.quantidade
+                item.variacao.save()
+                MovimentoEstoque.objects.create(
+                    produto=item.produto,
+                    variacao=item.variacao,
+                    quantidade=item.quantidade,
+                    tipo='saida',
+                    usuario=usuario_referencia
+                )
+            else:
+                produto = item.produto
+                produto.quantidade -= item.quantidade
+                produto.save()
+                MovimentoEstoque.objects.create(
+                    produto=produto,
+                    quantidade=item.quantidade,
+                    tipo='saida',
+                    usuario=usuario_referencia
+                )
         
-        # Criar movimentação de caixa com valor líquido (com desconto)
         Movimentacao.objects.create(
             tipo='E',
             valor=nota.total_com_desconto,
@@ -678,7 +791,6 @@ def finalizar_venda(request, nota_id):
             usuario=usuario_referencia
         )
 
-        # LOG ADICIONADO: Venda Finalizada com Sucesso
         LogSistema.objects.create(
             usuario=request.user,
             acao='U',
@@ -688,7 +800,6 @@ def finalizar_venda(request, nota_id):
         
         messages.success(request, 'Venda finalizada com sucesso!')
         return redirect('dashboard')   
-    # Se for GET, mostrar formulário de pagamento
     return render(request, 'core/finalizar_venda.html', {
         'nota': nota,
         'itens': itens
@@ -704,10 +815,8 @@ def cancelar_venda(request, nota_id):
     
     id_cancelado = nota.id
     cliente_cancelado = nota.cliente
-    # Deletar a nota de venda (os itens serão deletados em cascade)
     nota.delete()
 
-    # LOG ADICIONADO: Venda Cancelada
     LogSistema.objects.create(
         usuario=request.user,
         acao='D',
@@ -730,15 +839,15 @@ def aplicar_desconto_ajax(request):
             return JsonResponse({'success': False, 'error': 'Dados incompletos'})
         
         try:
+            usuario_referencia = get_usuario_referencia(request)
             nota = get_object_or_404(NotaVenda, id=nota_id, usuario=usuario_referencia)
             valor_desconto = Decimal(valor_desconto)
             
             if tipo_desconto == 'percentual':
                 desconto = (nota.total * valor_desconto) / 100
-            else:  # valor
+            else:
                 desconto = valor_desconto
             
-            # Validar desconto
             if desconto > nota.total:
                 return JsonResponse({
                     'success': False, 
@@ -753,9 +862,9 @@ def aplicar_desconto_ajax(request):
                 'total_com_desconto': str(total_com_desconto.quantize(Decimal('0.01')))
             })
             
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             return JsonResponse({'success': False, 'error': 'Valor inválido'})
-        except Exception as e:
+        except Exception:
             return JsonResponse({'success': False, 'error': 'Erro interno'})
     
     return JsonResponse({'success': False, 'error': 'Método não permitido'})
@@ -766,7 +875,7 @@ def ver_nota_venda(request, nota_id):
     from .utils import get_usuario_referencia
     usuario_referencia = get_usuario_referencia(request)
     nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=usuario_referencia)
-    itens = nota.itemvenda_set.all()
+    itens = nota.itemvenda_set.select_related('variacao').all()
     
     return render(request, 'core/nota_venda.html', {
         'nota': nota,
@@ -780,11 +889,16 @@ def imprimir_recibo_venda(request, nota_id):
     from .utils import get_usuario_referencia
     usuario_referencia = get_usuario_referencia(request)
     nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=usuario_referencia)
-    
+    try:
+        perfil = Perfil.objects.get(usuario=usuario_referencia)
+    except Perfil.DoesNotExist:
+        perfil = None
+
     context = {
         'nota': nota,
-        'itens': nota.itemvenda_set.all(),
+        'itens': nota.itemvenda_set.select_related('variacao').all(),
         'data_emissao': timezone.now(),
+        'perfil_empresa': perfil,
     }
     
     return render(request, 'core/recibo_impressao.html', context)
@@ -796,7 +910,6 @@ def register(request):
             user = form.save()
             login(request, user)
 
-            # LOG ADICIONADO: Registro de Novo Usuário
             LogSistema.objects.create(
                 usuario=user,
                 acao='C',
@@ -820,7 +933,6 @@ def change_password(request):
             user = form.save()
             update_session_auth_hash(request, user)
 
-            # LOG ADICIONADO: Alteração de Senha
             LogSistema.objects.create(
                 usuario=request.user,
                 acao='U',
@@ -843,6 +955,7 @@ def change_password(request):
     })
 
 def lista_entradas(request):
+    usuario_referencia = get_usuario_referencia(request)
     movimentacoes = Movimentacao.objects.filter(
         tipo='E',
         usuario=usuario_referencia
@@ -856,6 +969,7 @@ def lista_entradas(request):
     })
     
 def lista_saidas(request):
+    usuario_referencia = get_usuario_referencia(request)
     movimentacoes = Movimentacao.objects.filter(
         tipo='S',
         usuario=usuario_referencia
@@ -890,22 +1004,22 @@ def remover_item_venda(request, pk):
     item = get_object_or_404(ItemVenda, pk=pk, nota__usuario=usuario_referencia)
     
     if request.method == 'POST':
-        # Devolver a quantidade ao estoque
-        produto = item.produto
-        produto.quantidade += item.quantidade
-        produto.save()
+        if item.variacao:
+            item.variacao.quantidade += item.quantidade
+            item.variacao.save()
+        else:
+            produto = item.produto
+            produto.quantidade += item.quantidade
+            produto.save()
         
-        # Remover o item e atualizar o total da nota
         nota = item.nota
         nome_produto = item.produto.nome
         qtd_removida = item.quantidade
         item.delete()
         
-        # Recalcular o total da nota
         nota.total = sum(item.subtotal for item in nota.itemvenda_set.all())
         nota.save()
 
-        # LOG ADICIONADO: Item removido da Venda
         LogSistema.objects.create(
             usuario=request.user,
             acao='D',
@@ -920,7 +1034,6 @@ def remover_item_venda(request, pk):
 
 @login_required
 def user_logout(request):
-    # LOG ADICIONADO: Log de Logout (inserido antes de limpar a sessão)
     LogSistema.objects.create(
         usuario=request.user,
         acao='L',
@@ -939,7 +1052,6 @@ def lista_todas_vendas(request):
     
     usuario_referencia = get_usuario_referencia(request)
     
-    # Buscar todos os vendedores possíveis (usuário principal + colaboradores)
     vendedores_ids = Colaborador.objects.filter(
         usuario_principal=usuario_referencia,
         ativo=True
@@ -949,9 +1061,8 @@ def lista_todas_vendas(request):
         Q(id=usuario_referencia.id) | Q(id__in=vendedores_ids)
     ).distinct()
     
-    vendas = NotaVenda.objects.filter(usuario=usuario_referencia).prefetch_related('itemvenda_set__produto')
+    vendas = NotaVenda.objects.filter(usuario=usuario_referencia).prefetch_related('itemvenda_set__produto', 'itemvenda_set__variacao')
     
-    # Aplicar filtros
     status_filter = request.GET.get('status')
     vendedor_filter = request.GET.get('vendedor')
     data_inicio = request.GET.get('data_inicio')
@@ -970,15 +1081,12 @@ def lista_todas_vendas(request):
         vendas = vendas.filter(data__gte=data_inicio)
     
     if data_fim:
-        from datetime import datetime
         data_fim_obj = datetime.strptime(data_fim, '%Y-%m-%d')
         data_fim_obj = data_fim_obj.replace(hour=23, minute=59, second=59)
         vendas = vendas.filter(data__lte=data_fim_obj)
     
-    # Ordenar e paginar
     vendas = vendas.order_by('-data')
     
-    # Estatísticas
     total_vendas_count = vendas.count()
     total_vendas_valor = vendas.aggregate(total=Sum('total_com_desconto'))['total'] or 0
     
@@ -994,14 +1102,13 @@ def lista_todas_vendas(request):
 @login_required
 def editar_perfil(request):
     usuario = request.user
-    perfil = Perfil.objects.first()
+    perfil, _ = Perfil.objects.get_or_create(usuario=usuario, defaults={'Nome': usuario.get_full_name() or usuario.username})
 
     if request.method == 'POST':
-        form = EditarPerfilForm(request.POST, request.FILES, instance=perfil)
+        form = EditarPerfilForm(request.POST, request.FILES, instance=perfil, user=usuario)
         if form.is_valid():
             form.save()
 
-            # LOG ADICIONADO: Edição de Perfil
             LogSistema.objects.create(
                 usuario=request.user,
                 acao='U',
@@ -1009,15 +1116,17 @@ def editar_perfil(request):
                 descricao=f"Atualizou as informações do perfil corporativo."
             )
 
-            messages.success(request, 'Perfil updated com sucesso!')
-            return redirect('dashboard')
+            messages.success(request, 'Perfil atualizado com sucesso!')
+            return redirect('editar_perfil')
         else:
+            print("Erros do formulário perfil:", form.errors)
             messages.error(request, 'Corrija os erros abaixo.')
     else:
-        form = EditarPerfilForm(instance=perfil)
+        form = EditarPerfilForm(instance=perfil, user=usuario)
 
     return render(request, 'registration/editar_perfil.html', {
         'form': form,
+        'perfil': perfil,
         'title': 'Editar Perfil'
     })
 
@@ -1030,10 +1139,8 @@ def imprimir_lista_vendas(request):
     
     usuario_referencia = get_usuario_referencia(request)
     
-    # Query base
-    vendas = NotaVenda.objects.filter(usuario=usuario_referencia).prefetch_related('itemvenda_set__produto')
+    vendas = NotaVenda.objects.filter(usuario=usuario_referencia).prefetch_related('itemvenda_set__produto', 'itemvenda_set__variacao')
     
-    # Aplicar os mesmos filtros da view principal
     status_filter = request.GET.get('status')
     vendedor_filter = request.GET.get('vendedor')
     data_inicio = request.GET.get('data_inicio')
@@ -1066,14 +1173,11 @@ def imprimir_lista_vendas(request):
         data_fim_obj = data_fim_obj.replace(hour=23, minute=59, second=59)
         vendas = vendas.filter(data__lte=data_fim_obj)
     
-    # Ordenar
     vendas = vendas.order_by('-data')
     
-    # Estatísticas detalhadas
     total_vendas_count = vendas.count()
     total_vendas_valor = vendas.aggregate(total=Sum('total_com_desconto'))['total'] or 0
     
-    # Estatísticas por status
     vendas_finalizadas = vendas.filter(status='finalizada').count()
     valor_finalizadas = vendas.filter(status='finalizada').aggregate(
         total=Sum('total_com_desconto'))['total'] or 0
@@ -1090,23 +1194,954 @@ def imprimir_lista_vendas(request):
         'valor_finalizadas': valor_finalizadas,
         'vendas_abertas': vendas_abertas,
         'valor_abertas': valor_abertas,
-        
-        # Filtros aplicados
         'data_inicio': data_inicio,
         'data_fim': data_fim,
         'status_filtro': status_filtro,
         'vendedor_filtro': vendedor_filtro,
-        
-        # Dados da empresa
         'empresa_nome': "SUA EMPRESSA LTDA",
         'empresa_endereco': "Rua Principal, 123 - Centro",
         'empresa_telefone': "(11) 99999-9999",
         'empresa_email': "contato@empresa.com",
         'empresa_cnpj': "00.000.000/0001-00",
-        
-        # Data de emissão
         'data_emissao': datetime.now().strftime("%d/%m/%Y %H:%M"),
         'usuario': request.user,
     }
     
     return render(request, 'core/imprimir_lista_vendas.html', context)
+
+
+# =============================================================================
+# VIEWS DE VARIAÇÕES (GRADE)
+# =============================================================================
+
+@login_required
+def tipo_variacao_list(request):
+    usuario_referencia = get_usuario_referencia(request)
+    tipos = TipoVariacao.objects.filter(usuario=usuario_referencia).annotate(
+        qtd_valores=Count('valores')
+    )
+    return render(request, 'core/tipo_variacao_list.html', {'tipos': tipos})
+
+
+@login_required
+def tipo_variacao_create(request):
+    usuario_referencia = get_usuario_referencia(request)
+    if request.method == 'POST':
+        form = TipoVariacaoForm(request.POST, usuario=usuario_referencia)
+        if form.is_valid():
+            tipo = form.save()
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='C',
+                modulo='Produtos / Estoque',
+                descricao=f"Criou o tipo de variação '{tipo.nome}'"
+            )
+
+            messages.success(request, f'Tipo de variação "{tipo.nome}" criado com sucesso!')
+            return redirect('tipo_variacao_list')
+    else:
+        form = TipoVariacaoForm(usuario=usuario_referencia)
+    return render(request, 'core/tipo_variacao_form.html', {'form': form, 'titulo': 'Novo Tipo de Variação'})
+
+
+@login_required
+def tipo_variacao_edit(request, pk):
+    usuario_referencia = get_usuario_referencia(request)
+    tipo = get_object_or_404(TipoVariacao, pk=pk, usuario=usuario_referencia)
+    if request.method == 'POST':
+        form = TipoVariacaoForm(request.POST, instance=tipo, usuario=usuario_referencia)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Tipo de variação "{tipo.nome}" atualizado!')
+            return redirect('tipo_variacao_list')
+    else:
+        form = TipoVariacaoForm(instance=tipo, usuario=usuario_referencia)
+    return render(request, 'core/tipo_variacao_form.html', {'form': form, 'titulo': f'Editar: {tipo.nome}'})
+
+
+@login_required
+@require_POST
+def tipo_variacao_delete(request, pk):
+    usuario_referencia = get_usuario_referencia(request)
+    tipo = get_object_or_404(TipoVariacao, pk=pk, usuario=usuario_referencia)
+    
+    if tipo.produtos.exists():
+        messages.error(request, f'Não é possível excluir "{tipo.nome}" pois está associado a produtos.')
+        return redirect('tipo_variacao_list')
+    
+    nome = tipo.nome
+    tipo.delete()
+
+    LogSistema.objects.create(
+        usuario=request.user,
+        acao='D',
+        modulo='Produtos / Estoque',
+        descricao=f"Excluiu o tipo de variação '{nome}'"
+    )
+
+    messages.success(request, f'Tipo de variação "{nome}" excluído!')
+    return redirect('tipo_variacao_list')
+
+
+@login_required
+def tipo_variacao_valores(request, pk):
+    usuario_referencia = get_usuario_referencia(request)
+    tipo = get_object_or_404(TipoVariacao, pk=pk, usuario=usuario_referencia)
+    valores = tipo.valores.all()
+
+    if request.method == 'POST':
+        form = ValorVariacaoForm(request.POST)
+        if form.is_valid():
+            valor = form.save(commit=False)
+            valor.tipo = tipo
+            try:
+                valor.save()
+                messages.success(request, f'Valor "{valor.valor}" adicionado!')
+            except Exception:
+                messages.error(request, f'O valor "{valor.valor}" já existe para este tipo.')
+            return redirect('tipo_variacao_valores', pk=pk)
+    else:
+        form = ValorVariacaoForm()
+
+    return render(request, 'core/tipo_variacao_valores.html', {
+        'tipo': tipo, 'valores': valores, 'form': form
+    })
+
+
+@login_required
+@require_POST
+def valor_variacao_delete(request, pk):
+    usuario_referencia = get_usuario_referencia(request)
+    valor = get_object_or_404(ValorVariacao, pk=pk, tipo__usuario=usuario_referencia)
+    tipo_pk = valor.tipo.pk
+    
+    if valor.produto_variacoes.exists():
+        messages.error(request, f'Não é possível excluir "{valor.valor}" pois está em uso em variações de produtos.')
+        return redirect('tipo_variacao_valores', pk=tipo_pk)
+    
+    nome = valor.valor
+    valor.delete()
+    messages.success(request, f'Valor "{nome}" excluído!')
+    return redirect('tipo_variacao_valores', pk=tipo_pk)
+
+
+@login_required
+def produto_variacoes(request, produto_pk):
+    usuario_referencia = get_usuario_referencia(request)
+    produto = get_object_or_404(Produto, pk=produto_pk, usuario=usuario_referencia)
+    variacoes = produto.variacoes.prefetch_related('valores__tipo').all()
+
+    if not produto.tem_variacao:
+        messages.info(request, 'Este produto não possui variações habilitadas.')
+        return redirect('editar_produto', id=produto.pk)
+
+    form = ProdutoVariacaoForm(produto=produto)
+
+    if request.method == 'POST' and 'adicionar' in request.POST:
+        form = ProdutoVariacaoForm(request.POST, produto=produto)
+        if form.is_valid():
+            variacao = form.save(commit=False)
+            variacao.produto = produto
+            variacao.save()
+            form.save_m2m()
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='C',
+                modulo='Produtos / Estoque',
+                descricao=f"Adicionou variação SKU '{variacao.sku}' ao produto '{produto.nome}'"
+            )
+
+            messages.success(request, f'Variação "{variacao.sku}" criada com sucesso!')
+            return redirect('produto_variacoes', produto_pk=produto_pk)
+
+    tipos = produto.tipos_variacao.all()
+    valores_por_tipo = {}
+    for tipo in tipos:
+        valores_por_tipo[tipo.pk] = tipo.valores.all()
+
+    return render(request, 'core/produto_variacoes.html', {
+        'produto': produto,
+        'variacoes': variacoes,
+        'form': form,
+        'tipos': tipos,
+        'valores_por_tipo': valores_por_tipo,
+    })
+
+
+@login_required
+def adicionar_valor_rapido(request, produto_pk, tipo_pk):
+    usuario_referencia = get_usuario_referencia(request)
+    produto = get_object_or_404(Produto, pk=produto_pk, usuario=usuario_referencia)
+    tipo = get_object_or_404(TipoVariacao, pk=tipo_pk, usuario=usuario_referencia)
+
+    if request.method == 'POST':
+        valor_texto = request.POST.get('valor', '').strip()
+        if not valor_texto:
+            messages.error(request, 'Informe o valor da variação.')
+            return redirect('produto_variacoes', produto_pk=produto_pk)
+
+        valor, criado = ValorVariacao.objects.get_or_create(
+            tipo=tipo,
+            valor=valor_texto,
+            defaults={'usuario': usuario_referencia}
+        )
+
+        if criado:
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='C',
+                modulo='Produtos / Variações',
+                descricao=f"Criou valor '{valor_texto}' para o tipo '{tipo.nome}'"
+            )
+            messages.success(request, f'Valor "{valor_texto}" criado no tipo "{tipo.nome}".')
+        else:
+            messages.info(request, f'Valor "{valor_texto}" já existe no tipo "{tipo.nome}".')
+
+    return redirect('produto_variacoes', produto_pk=produto_pk)
+
+
+@login_required
+@require_POST
+def produto_variacao_delete(request, pk):
+    usuario_referencia = get_usuario_referencia(request)
+    variacao = get_object_or_404(ProdutoVariacao, pk=pk, produto__usuario=usuario_referencia)
+    produto_pk = variacao.produto.pk
+
+    if variacao.itens_venda.exists():
+        messages.error(request, f'Não é possível excluir a variação "{variacao.sku}" pois ela já foi vendida.')
+        return redirect('produto_variacoes', produto_pk=produto_pk)
+    
+    sku = variacao.sku
+    variacao.delete()
+
+    LogSistema.objects.create(
+        usuario=request.user,
+        acao='D',
+        modulo='Produtos / Estoque',
+        descricao=f"Excluiu a variação SKU '{sku}' do produto ID {produto_pk}"
+    )
+
+    messages.success(request, f'Variação "{sku}" excluída!')
+    return redirect('produto_variacoes', produto_pk=produto_pk)
+
+
+@login_required
+def entrada_variacao_estoque(request, variacao_pk):
+    usuario_referencia = get_usuario_referencia(request)
+    variacao = get_object_or_404(
+        ProdutoVariacao, pk=variacao_pk, produto__usuario=usuario_referencia
+    )
+    
+    if request.method == 'POST':
+        form = EntradaEstoqueForm(request.POST)
+        if form.is_valid():
+            quantidade = form.cleaned_data['quantidade']
+            variacao.quantidade += quantidade
+            variacao.save()
+            
+            MovimentoEstoque.objects.create(
+                produto=variacao.produto,
+                variacao=variacao,
+                quantidade=quantidade,
+                tipo='entrada',
+                usuario=request.user
+            )
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Produtos / Estoque',
+                descricao=f"Entrada de {quantidade} un. na variação SKU '{variacao.sku}' do produto '{variacao.produto.nome}'"
+            )
+            
+            messages.success(request, f'{quantidade} unidades adicionadas ao estoque de "{variacao.sku}"!')
+            return redirect('produto_variacoes', produto_pk=variacao.produto.pk)
+    else:
+        form = EntradaEstoqueForm()
+    
+    return render(request, 'core/entrada_variacao_estoque.html', {
+        'form': form,
+        'variacao': variacao
+    })
+
+
+@login_required
+def gerar_grade(request, produto_pk):
+    usuario_referencia = get_usuario_referencia(request)
+    produto = get_object_or_404(Produto, pk=produto_pk, usuario=usuario_referencia)
+
+    tipos = produto.tipos_variacao.all()
+
+    if not tipos.exists():
+        messages.error(request, 'Selecione ao menos um tipo de variação no produto.')
+        return redirect('editar_produto', id=produto.pk)
+
+    if request.method != 'POST':
+        return redirect('produto_variacoes', produto_pk=produto_pk)
+
+    listas_valores = []
+    tipos_sem_valores = []
+
+    for tipo in tipos:
+        ids_selecionados = request.POST.getlist(f'valores_tipo_{tipo.pk}')
+        if not ids_selecionados:
+            messages.warning(request, f'Selecione ao menos um valor para o tipo "{tipo.nome}".')
+            return redirect('produto_variacoes', produto_pk=produto_pk)
+
+        valores = list(tipo.valores.filter(pk__in=ids_selecionados))
+        if not valores:
+            tipos_sem_valores.append(tipo.nome)
+            continue
+        listas_valores.append(valores)
+
+    if tipos_sem_valores:
+        messages.warning(request, f'Nenhum valor válido selecionado para: {", ".join(tipos_sem_valores)}.')
+        return redirect('produto_variacoes', produto_pk=produto_pk)
+
+    if not listas_valores:
+        messages.error(request, 'Nenhum valor selecionado para gerar a grade.')
+        return redirect('produto_variacoes', produto_pk=produto_pk)
+
+    combinacoes = list(itertools_product(*listas_valores))
+
+    criados = 0
+    ja_existiam = 0
+    for combo in combinacoes:
+        partes_sku = [produto.sku_base or produto.nome[:4].upper().replace(' ', '')]
+        for v in combo:
+            partes_sku.append(v.valor[:3].upper().replace(' ', ''))
+        sku = "-".join(partes_sku)
+
+        if ProdutoVariacao.objects.filter(sku=sku).exists():
+            ja_existiam += 1
+            continue
+
+        variacao = ProdutoVariacao.objects.create(
+            produto=produto,
+            sku=sku,
+            quantidade=0,
+        )
+        variacao.valores.set(combo)
+        criados += 1
+
+    if criados > 0:
+        LogSistema.objects.create(
+            usuario=request.user,
+            acao='C',
+            modulo='Produtos / Estoque',
+            descricao=f"Gerou grade automática com {criados} variações para o produto '{produto.nome}'"
+        )
+        msg = f'{criados} variação(ões) criada(s) com sucesso!'
+        if ja_existiam > 0:
+            msg += f' {ja_existiam} combinação(ões) já existia(m) e foi(foram) pulada(s).'
+        messages.success(request, msg)
+    else:
+        messages.info(request, 'Todas as combinações selecionadas já existem para este produto.')
+    
+    return redirect('produto_variacoes', produto_pk=produto_pk)
+
+
+# =============================================================================
+# CORREÇÃO DE ESTOQUE
+# =============================================================================
+
+@login_required
+def corrigir_estoque(request, id):
+    usuario_referencia = get_usuario_referencia(request)
+    produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
+
+    if produto.tem_variacao:
+        return redirect('produto_variacoes', produto_pk=produto.pk)
+
+    if request.method == 'POST':
+        form = CorrecaoEstoqueForm(request.POST)
+        if form.is_valid():
+            qtd_correta = form.cleaned_data['quantidade_correta']
+            observacao = form.cleaned_data.get('observacao', '')
+            qtd_atual = produto.quantidade
+            diferenca = qtd_correta - qtd_atual
+
+            if diferenca == 0:
+                messages.info(request, 'O estoque já está com a quantidade correta.')
+                return redirect('estoque')
+
+            produto.quantidade = qtd_correta
+            produto.save()
+
+            MovimentoEstoque.objects.create(
+                produto=produto,
+                quantidade=diferenca,
+                tipo='correcao',
+                usuario=request.user
+            )
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Produtos / Estoque',
+                descricao=f"Corrigiu estoque do produto '{produto.nome}': {qtd_atual} → {qtd_correta}. Diferença: {diferenca:+d}"
+            )
+
+            if diferenca > 0:
+                messages.success(request, f'Estoque corrigido! Adicionado {diferenca} un. (era {qtd_atual}, agora {qtd_correta}).')
+            else:
+                messages.warning(request, f'Estoque corrigido! Removido {abs(diferenca)} un. (era {qtd_atual}, agora {qtd_correta}).')
+            return redirect('estoque')
+    else:
+        form = CorrecaoEstoqueForm()
+
+    return render(request, 'core/corrigir_estoque.html', {
+        'form': form,
+        'produto': produto,
+    })
+
+
+@login_required
+def corrigir_estoque_variacao(request, variacao_pk):
+    usuario_referencia = get_usuario_referencia(request)
+    variacao = get_object_or_404(
+        ProdutoVariacao, pk=variacao_pk, produto__usuario=usuario_referencia
+    )
+
+    if request.method == 'POST':
+        form = CorrecaoEstoqueForm(request.POST)
+        if form.is_valid():
+            qtd_correta = form.cleaned_data['quantidade_correta']
+            observacao = form.cleaned_data.get('observacao', '')
+            qtd_atual = variacao.quantidade
+            diferenca = qtd_correta - qtd_atual
+
+            if diferenca == 0:
+                messages.info(request, 'O estoque já está com a quantidade correta.')
+                return redirect('produto_variacoes', produto_pk=variacao.produto.pk)
+
+            variacao.quantidade = qtd_correta
+            variacao.save()
+
+            MovimentoEstoque.objects.create(
+                produto=variacao.produto,
+                variacao=variacao,
+                quantidade=diferenca,
+                tipo='correcao',
+                usuario=request.user
+            )
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Produtos / Estoque',
+                descricao=f"Corrigiu estoque da variação SKU '{variacao.sku}': {qtd_atual} → {qtd_correta}. Diferença: {diferenca:+d}"
+            )
+
+            if diferenca > 0:
+                messages.success(request, f'Estoque corrigido! Adicionado {diferenca} un. (era {qtd_atual}, agora {qtd_correta}).')
+            else:
+                messages.warning(request, f'Estoque corrigido! Removido {abs(diferenca)} un. (era {qtd_atual}, agora {qtd_correta}).')
+            return redirect('produto_variacoes', produto_pk=variacao.produto.pk)
+    else:
+        form = CorrecaoEstoqueForm()
+
+    return render(request, 'core/corrigir_estoque_variacao.html', {
+        'form': form,
+        'variacao': variacao,
+    })
+
+
+# =============================================================================
+# ESTOQUE BAIXO (PÁGINA COMPLETA)
+# =============================================================================
+
+@login_required
+def estoque_baixo(request):
+    from django.db.models import Max, Q
+    from datetime import timedelta
+
+    usuario_referencia = get_usuario_referencia(request)
+
+    # Buscar configuracao de estoque baixo
+    from .models import ConfigEstoqueBaixo
+    config_estoque, _ = ConfigEstoqueBaixo.objects.get_or_create(
+        usuario=usuario_referencia,
+        defaults={
+            'nome_empresa': usuario_referencia.get_full_name() or usuario_referencia.username,
+            'limite_estoque_baixo': 5,
+            'dias_movimentacao': 30,
+        }
+    )
+
+    filtro_dias = request.GET.get('dias', '')
+    limite = int(request.GET.get('limite', config_estoque.limite_estoque_baixo))
+
+    # Produtos sem grade com estoque baixo
+    produtos_sem_grade = Produto.objects.filter(
+        usuario=usuario_referencia,
+        tem_variacao=False,
+        quantidade__lte=limite
+    )
+
+    # Variacoes (SKUs) com estoque baixo
+    variacoes_baixo = ProdutoVariacao.objects.filter(
+        produto__usuario=usuario_referencia,
+        ativo=True,
+        quantidade__lte=limite
+    ).select_related('produto')
+
+    # Montar lista unica
+    itens = []
+
+    for p in produtos_sem_grade:
+        ultimo_mov = MovimentoEstoque.objects.filter(
+            produto=p, variacao__isnull=True
+        ).aggregate(ultima=Max('data'))['ultima']
+
+        itens.append({
+            'nome': p.nome,
+            'sku': None,
+            'variacao': None,
+            'quantidade': p.quantidade,
+            'produto_id': p.pk,
+            'url': f'/estoque/editar/{p.pk}/',
+            'ultima_movimentacao': ultimo_mov,
+        })
+
+    for v in variacoes_baixo:
+        ultimo_mov = MovimentoEstoque.objects.filter(
+            variacao=v
+        ).aggregate(ultima=Max('data'))['ultima']
+
+        itens.append({
+            'nome': v.produto.nome,
+            'sku': v.sku,
+            'variacao': v.descricao_variacao,
+            'quantidade': v.quantidade,
+            'produto_id': v.produto.pk,
+            'url': f'/produto/{v.produto.pk}/variacao/',
+            'ultima_movimentacao': ultimo_mov,
+        })
+
+    # Filtrar por dias da ultima movimentacao
+    if filtro_dias and filtro_dias != 'todas':
+        try:
+            dias = int(filtro_dias)
+            corte = timezone.now() - timedelta(days=dias)
+            itens = [
+                i for i in itens
+                if i['ultima_movimentacao'] and i['ultima_movimentacao'] >= corte
+            ]
+        except (ValueError, TypeError):
+            pass
+
+    itens.sort(key=lambda x: x['quantidade'])
+
+    context = {
+        'itens': itens,
+        'total': len(itens),
+        'filtro_dias': filtro_dias,
+        'limite': limite,
+    }
+    return render(request, 'core/estoque_baixo.html', context)
+
+
+# =============================================================================
+# ORCAMENTOS
+# =============================================================================
+
+def _verificar_expiracao_orcamentos(usuario_referencia):
+    """Atualiza para 'expirado' orcamentos com validade vencida."""
+    Orcamento.objects.filter(
+        usuario=usuario_referencia,
+        status__in=['rascunho', 'pendente'],
+        validade__lt=date.today()
+    ).update(status='expirado')
+
+
+@login_required
+def lista_orcamentos(request):
+    from django.db.models import Q
+
+    usuario_referencia = get_usuario_referencia(request)
+    _verificar_expiracao_orcamentos(usuario_referencia)
+
+    status_filter = request.GET.get('status', '')
+
+    orcamentos = Orcamento.objects.filter(
+        usuario=usuario_referencia
+    ).order_by('-data')
+
+    if status_filter:
+        orcamentos = orcamentos.filter(status=status_filter)
+
+    context = {
+        'orcamentos': orcamentos,
+        'status_filter': status_filter,
+        'status_choices': Orcamento.STATUS_CHOICES,
+    }
+    return render(request, 'core/lista_orcamentos.html', context)
+
+
+@login_required
+def criar_orcamento(request):
+    from datetime import timedelta
+    usuario_referencia = get_usuario_referencia(request)
+
+    config_estoque, _ = ConfigEstoqueBaixo.objects.get_or_create(
+        usuario=usuario_referencia,
+        defaults={
+            'nome_empresa': usuario_referencia.get_full_name() or usuario_referencia.username,
+        }
+    )
+
+    if request.method == 'POST':
+        form = OrcamentoForm(request.POST)
+        if form.is_valid():
+            orcamento = form.save(commit=False)
+            orcamento.total = 0
+            orcamento.usuario = usuario_referencia
+            orcamento.usuario_executante = request.user
+
+            if not orcamento.validade:
+                orcamento.validade = date.today() + timedelta(days=config_estoque.dias_validade_orcamento)
+
+            orcamento.save()
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='C',
+                modulo='Orçamentos',
+                descricao=f"Criou orçamento #{orcamento.id} para o cliente '{orcamento.cliente}'"
+            )
+
+            messages.success(request, 'Orçamento criado com sucesso!')
+            return redirect('adicionar_item_orcamento', orcamento_id=orcamento.id)
+    else:
+        form = OrcamentoForm(initial={
+            'validade': date.today() + timedelta(days=config_estoque.dias_validade_orcamento),
+        })
+
+    return render(request, 'core/orcamento_form.html', {'form': form})
+
+
+@login_required
+def adicionar_item_orcamento(request, orcamento_id):
+    usuario_referencia = get_usuario_referencia(request)
+
+    orcamento = get_object_or_404(
+        Orcamento,
+        pk=orcamento_id,
+        usuario=usuario_referencia
+    )
+
+    if request.method == 'POST':
+        form = ItemOrcamentoForm(request.POST, usuario=usuario_referencia)
+        if form.is_valid():
+            item = form.save(commit=False)
+            item.orcamento = orcamento
+
+            variacao = form.cleaned_data.get('variacao')
+            if variacao:
+                item.variacao = variacao
+                item.preco_unitario = variacao.preco_efetivo
+            else:
+                item.preco_unitario = item.produto.preco
+
+            item.save()
+
+            orcamento.total = sum(item.subtotal for item in orcamento.itemorcamento_set.all())
+            orcamento.save()
+
+            desc_item = item.produto.nome
+            if variacao:
+                desc_item += f" [{variacao.sku}]"
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Orçamentos',
+                descricao=f"Adicionou {item.quantidade}x do produto '{desc_item}' ao orçamento #{orcamento.id}"
+            )
+
+            messages.success(request, 'Item adicionado com sucesso!')
+            return redirect('adicionar_item_orcamento', orcamento_id=orcamento.id)
+    else:
+        form = ItemOrcamentoForm(usuario=usuario_referencia)
+
+    produtos = Produto.objects.filter(usuario=usuario_referencia)
+    itens = orcamento.itemorcamento_set.select_related('produto', 'variacao').all()
+
+    return render(request, 'core/orcamento_itens.html', {
+        'orcamento': orcamento,
+        'form': form,
+        'itens': itens,
+        'produtos': produtos,
+    })
+
+
+@login_required
+def remover_item_orcamento(request, pk):
+    usuario_referencia = get_usuario_referencia(request)
+    item = get_object_or_404(ItemOrcamento, pk=pk, orcamento__usuario=usuario_referencia)
+    orcamento_id = item.orcamento.pk
+    item.delete()
+
+    orcamento = Orcamento.objects.get(pk=orcamento_id)
+    orcamento.total = sum(item.subtotal for item in orcamento.itemorcamento_set.all())
+    orcamento.save()
+
+    messages.success(request, 'Item removido com sucesso!')
+    return redirect('adicionar_item_orcamento', orcamento_id=orcamento_id)
+
+
+@login_required
+def finalizar_orcamento(request, orcamento_id):
+    usuario_referencia = get_usuario_referencia(request)
+    orcamento = get_object_or_404(Orcamento, pk=orcamento_id, usuario=usuario_referencia)
+
+    itens = orcamento.itemorcamento_set.all()
+    if not itens.exists():
+        messages.error(request, 'Não é possível finalizar um orçamento sem itens!')
+        return redirect('adicionar_item_orcamento', orcamento_id=orcamento.id)
+
+    if request.method == 'POST':
+        desconto_percentual = request.POST.get('desconto_percentual', '0')
+        desconto_valor = request.POST.get('desconto_valor', '0')
+
+        try:
+            desconto_percentual = Decimal(desconto_percentual)
+            desconto_valor = Decimal(desconto_valor)
+        except (ValueError, TypeError):
+            desconto_percentual = Decimal(0)
+            desconto_valor = Decimal(0)
+
+        if desconto_percentual > 0:
+            desconto_final = (orcamento.total * desconto_percentual) / 100
+        else:
+            desconto_final = desconto_valor
+
+        if desconto_final > orcamento.total:
+            messages.error(request, 'Desconto não pode ser maior que o total do orçamento!')
+            return render(request, 'core/finalizar_orcamento.html', {
+                'orcamento': orcamento,
+                'itens': itens,
+            })
+
+        orcamento.desconto = desconto_final
+        orcamento.total_com_desconto = orcamento.total - desconto_final
+        orcamento.status = 'pendente'
+        orcamento.save()
+
+        LogSistema.objects.create(
+            usuario=request.user,
+            acao='U',
+            modulo='Orçamentos',
+            descricao=f"Finalizou orçamento #{orcamento.id} para '{orcamento.cliente}'. Total: R$ {orcamento.total_com_desconto}"
+        )
+
+        messages.success(request, 'Orçamento finalizado com sucesso!')
+        return redirect('lista_orcamentos')
+
+    return render(request, 'core/finalizar_orcamento.html', {
+        'orcamento': orcamento,
+        'itens': itens,
+    })
+
+
+@login_required
+def cancelar_orcamento(request, orcamento_id):
+    usuario_referencia = get_usuario_referencia(request)
+    orcamento = get_object_or_404(Orcamento, pk=orcamento_id, usuario=usuario_referencia)
+
+    id_cancelado = orcamento.id
+    cliente_cancelado = orcamento.cliente
+    orcamento.delete()
+
+    LogSistema.objects.create(
+        usuario=request.user,
+        acao='D',
+        modulo='Orçamentos',
+        descricao=f"Cancelou e excluiu o orçamento #{id_cancelado} do cliente '{cliente_cancelado}'"
+    )
+
+    messages.warning(request, f'Orçamento #{id_cancelado} cancelado com sucesso!')
+    return redirect('lista_orcamentos')
+
+
+@login_required
+def alterar_status_orcamento(request, orcamento_id):
+    usuario_referencia = get_usuario_referencia(request)
+    orcamento = get_object_or_404(Orcamento, pk=orcamento_id, usuario=usuario_referencia)
+
+    if request.method == 'POST':
+        novo_status = request.POST.get('status')
+        if novo_status in dict(Orcamento.STATUS_CHOICES):
+            orcamento.status = novo_status
+            orcamento.save()
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Orçamentos',
+                descricao=f"Alterou status do orçamento #{orcamento.id} para '{orcamento.get_status_display()}'"
+            )
+            messages.success(request, f'Status alterado para {orcamento.get_status_display()}.')
+
+    return redirect('lista_orcamentos')
+
+
+@login_required
+def ver_orcamento(request, orcamento_id):
+    usuario_referencia = get_usuario_referencia(request)
+    orcamento = get_object_or_404(Orcamento, pk=orcamento_id, usuario=usuario_referencia)
+
+    if orcamento.validade and orcamento.validade < date.today() and orcamento.status in ['rascunho', 'pendente']:
+        orcamento.status = 'expirado'
+        orcamento.save()
+
+    itens = orcamento.itemorcamento_set.select_related('produto', 'variacao').all()
+
+    return render(request, 'core/ver_orcamento.html', {
+        'orcamento': orcamento,
+        'itens': itens,
+    })
+
+
+@login_required
+def imprimir_orcamento(request, orcamento_id):
+    usuario_referencia = get_usuario_referencia(request)
+    orcamento = get_object_or_404(Orcamento, pk=orcamento_id, usuario=usuario_referencia)
+    itens = orcamento.itemorcamento_set.select_related('produto', 'variacao').all()
+    try:
+        perfil = Perfil.objects.get(usuario=usuario_referencia)
+    except Perfil.DoesNotExist:
+        perfil = None
+
+    return render(request, 'core/imprimir_orcamento.html', {
+        'orcamento': orcamento,
+        'itens': itens,
+        'perfil_empresa': perfil,
+    })
+
+
+@login_required
+def imprimir_orcamento_cupom(request, orcamento_id):
+    usuario_referencia = get_usuario_referencia(request)
+    orcamento = get_object_or_404(Orcamento, pk=orcamento_id, usuario=usuario_referencia)
+    itens = orcamento.itemorcamento_set.select_related('produto', 'variacao').all()
+    try:
+        perfil = Perfil.objects.get(usuario=usuario_referencia)
+    except Perfil.DoesNotExist:
+        perfil = None
+
+    return render(request, 'core/imprimir_orcamento_cupom.html', {
+        'orcamento': orcamento,
+        'itens': itens,
+        'perfil_empresa': perfil,
+    })
+
+
+@login_required
+def pdf_orcamento(request, orcamento_id):
+    from django.http import HttpResponse
+    from django.utils import formats
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm, cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from core.models import Perfil
+
+    usuario_referencia = get_usuario_referencia(request)
+    orcamento = get_object_or_404(Orcamento, pk=orcamento_id, usuario=usuario_referencia)
+    itens = orcamento.itemorcamento_set.select_related('produto', 'variacao').all()
+
+    try:
+        perfil = Perfil.objects.get(usuario=usuario_referencia)
+    except Perfil.DoesNotExist:
+        perfil = None
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            leftMargin=2*cm, rightMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+
+    styles = getSampleStyleSheet()
+    elements = []
+
+    # Header com dados da empresa
+    if perfil and perfil.logotipo:
+        try:
+            img = Image(perfil.logotipo.path, width=4*cm, height=2*cm)
+            img.hAlign = 'CENTER'
+            elements.append(img)
+            elements.append(Spacer(1, 6))
+        except Exception:
+            pass
+
+    if perfil and perfil.Empresas:
+        empresa_style = ParagraphStyle('Empresa', parent=styles['Normal'], fontSize=12, alignment=1, spaceAfter=2)
+        elements.append(Paragraph(perfil.Empresas, empresa_style))
+    if perfil and perfil.CNPJ:
+        cnpj_style = ParagraphStyle('CNPJ', parent=styles['Normal'], fontSize=9, alignment=1, spaceAfter=2)
+        elements.append(Paragraph(f"CNPJ: {perfil.CNPJ}", cnpj_style))
+    if perfil and perfil.telefone:
+        tel_style = ParagraphStyle('Tel', parent=styles['Normal'], fontSize=9, alignment=1, spaceAfter=6)
+        elements.append(Paragraph(f"Tel: {perfil.telefone}", tel_style))
+
+    title_style = ParagraphStyle('Title2', parent=styles['Title'], fontSize=18, spaceAfter=6)
+    elements.append(Paragraph(f"ORÇAMENTO #{orcamento.id:06d}", title_style))
+    elements.append(Spacer(1, 12))
+
+    # Info
+    info_style = ParagraphStyle('Info', parent=styles['Normal'], fontSize=10, leading=14)
+    elements.append(Paragraph(f"<b>Cliente:</b> {orcamento.cliente}", info_style))
+    elements.append(Paragraph(f"<b>Data:</b> {formats.date_format(orcamento.data, 'd/m/Y H:i')}", info_style))
+    if orcamento.validade:
+        elements.append(Paragraph(f"<b>Validade:</b> {formats.date_format(orcamento.validade, 'd/m/Y')}", info_style))
+    elements.append(Paragraph(f"<b>Status:</b> {orcamento.get_status_display()}", info_style))
+    if orcamento.observacao:
+        elements.append(Paragraph(f"<b>Observação:</b> {orcamento.observacao}", info_style))
+    elements.append(Spacer(1, 12))
+
+    # Items table
+    data = [['Produto', 'SKU', 'Qtd', 'Preço Unit.', 'Subtotal']]
+    for item in itens:
+        sku = item.variacao.sku if item.variacao else '-'
+        nome = item.produto.nome
+        if item.variacao:
+            nome += f" ({item.variacao.descricao_variacao})"
+        data.append([
+            nome,
+            sku,
+            str(item.quantidade),
+            f"R$ {item.preco_unitario:,.2f}",
+            f"R$ {item.subtotal:,.2f}",
+        ])
+
+    # Totals
+    data.append(['', '', '', 'Subtotal:', f"R$ {orcamento.total:,.2f}"])
+    if orcamento.desconto > 0:
+        data.append(['', '', '', 'Desconto:', f"- R$ {orcamento.desconto:,.2f}"])
+        data.append(['', '', '', 'TOTAL:', f"R$ {orcamento.total_com_desconto:,.2f}"])
+
+    table = Table(data, colWidths=[7*cm, 2.5*cm, 1.5*cm, 3*cm, 3*cm])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a90d9')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#f8f9fa')]),
+        ('FONTSIZE', (-2, -1), (-1, -1), 11),
+        ('SPAN', (0, -1), (3, -1)),
+    ]))
+    elements.append(table)
+
+    doc.build(elements)
+
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="orcamento_{orcamento.id:06d}.pdf"'
+    return response

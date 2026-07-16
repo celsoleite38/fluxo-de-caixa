@@ -7,8 +7,8 @@
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
                 <div class="d-flex justify-content-between align-items-center">
-                    <h4>Nova Venda</h4>
-                    <span class="badge bg-light text-dark fs-6">Total: R$ {{ nota.total|intcomma }}</span>
+                    <h4>Orçamento #{{ orcamento.id|stringformat:"06d" }}</h4>
+                    <span class="badge bg-light text-dark fs-6">Total: R$ {{ orcamento.total|intcomma }}</span>
                 </div>
             </div>
             
@@ -17,14 +17,19 @@
                 <form method="post" class="mb-4">
                     {% csrf_token %}
                     <div class="row g-3">
-                        <div class="col-md-8">
+                        <div class="col-md-6">
                             <label for="cliente" class="form-label">Cliente</label>
                             <input type="text" class="form-control" id="cliente" name="cliente" 
-                                   value="{{ nota.cliente }}" required>
+                                   value="{{ orcamento.cliente }}" required>
                         </div>
-                        <div class="col-md-4 d-flex align-items-end">
+                        <div class="col-md-3">
+                            <label for="validade" class="form-label">Validade</label>
+                            <input type="date" class="form-control" id="validade" name="validade"
+                                   value="{{ orcamento.validade|date:'Y-m:d'|default:'' }}">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">
-                                <i class="fas fa-save me-2"></i>Salvar Cliente
+                                <i class="fas fa-save me-2"></i>Salvar
                             </button>
                         </div>
                     </div>
@@ -34,7 +39,7 @@
 
                 <!-- Formulário de Itens -->
                 <h5 class="mb-3">Adicionar Produtos</h5>
-                <form method="post" action="{% url 'adicionar_item_venda' nota.id %}" id="formAdicionarItem">
+                <form method="post" action="{% url 'adicionar_item_orcamento' orcamento.id %}" id="formAdicionarItem">
                     {% csrf_token %}
                     
                     {% if form.non_field_errors %}
@@ -85,7 +90,7 @@
                     </div>
                 </form>
 
-                <!-- Lista de Itens Adicionados -->
+                <!-- Lista de Itens -->
                 <div class="table-responsive mt-4">
                     <table class="table table-hover">
                         <thead class="table-light">
@@ -113,10 +118,10 @@
                                 <td>{{ item.quantidade }}</td>
                                 <td>R$ {{ item.preco_unitario|intcomma }}</td>
                                 <td>R$ {{ item.subtotal|floatformat:2 }}</td>
-                                <td>  
-                                    <a href="{% url 'remover_item_venda' item.id %}" 
+                                <td>
+                                    <a href="{% url 'remover_item_orcamento' item.id %}" 
                                         class="btn btn-danger btn-sm"
-                                        onclick="return confirm('Tem certeza que deseja remover este item?');">
+                                        onclick="return confirm('Remover este item?')">
                                             <i class="fas fa-trash"></i>
                                     </a>
                                 </td>
@@ -124,7 +129,7 @@
                             {% empty %}
                             <tr>
                                 <td colspan="6" class="text-center text-muted">
-                                    Nenhum item adicionado à venda
+                                    Nenhum item adicionado ao orçamento
                                 </td>
                             </tr>
                             {% endfor %}
@@ -132,7 +137,7 @@
                         <tfoot class="table-group-divider">
                             <tr>
                                 <th colspan="4" class="text-end">Total:</th>
-                                <th>R$ {{ nota.total|intcomma }}</th>
+                                <th>R$ {{ orcamento.total|intcomma }}</th>
                                 <th></th>
                             </tr>
                         </tfoot>
@@ -142,51 +147,42 @@
 
             <div class="card-footer bg-light">
                 <div class="d-flex justify-content-between">
-                    <a href="{% url 'cancelar_venda' nota.id %}" class="btn btn-danger"
-                        onclick="return confirm('Tem certeza que deseja cancelar esta venda?')">
+                    <a href="{% url 'cancelar_orcamento' orcamento.id %}" class="btn btn-danger"
+                        onclick="return confirm('Tem certeza?')">
                         <i class="fas fa-times me-2"></i>Cancelar
                     </a>
-                    <a href="{% url 'finalizar_venda' nota.id %}" 
+                    <a href="{% url 'finalizar_orcamento' orcamento.id %}" 
                         class="btn btn-success {% if not itens %}disabled{% endif %}">
-                            <i class="fas fa-check me-2"></i>Finalizar Venda
-                    </a>
-                    <a href="{% url 'imprimir_recibo_venda' nota.id %}" class="btn btn-info">
-                        <i class="fas fa-receipt"></i> Visualizar Recibo
+                            <i class="fas fa-check me-2"></i>Finalizar Orçamento
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Painel de Informações -->
+    <!-- Painel lateral -->
     <div class="col-md-4">
         <div class="card mb-4">
             <div class="card-header bg-info text-white">
-                <h5>Informações da Venda</h5>
+                <h5>Informações</h5>
             </div>
             <div class="card-body">
                 <dl class="row">
                     <dt class="col-sm-5">Número:</dt>
-                    <dd class="col-sm-7">#{{ nota.id|stringformat:"06d" }}</dd>
-
+                    <dd class="col-sm-7">#{{ orcamento.id|stringformat:"06d" }}</dd>
                     <dt class="col-sm-5">Data:</dt>
-                    <dd class="col-sm-7">{{ nota.data|date:"d/m/Y H:i" }}</dd>
-
+                    <dd class="col-sm-7">{{ orcamento.data|date:"d/m/Y H:i" }}</dd>
                     <dt class="col-sm-5">Status:</dt>
                     <dd class="col-sm-7">
-                        <span class="badge bg-warning text-dark">Em andamento</span>
+                        <span class="badge bg-secondary">Rascunho</span>
                     </dd>
                 </dl>
             </div>
         </div>
 
-        <!-- Painel de Produtos -->
         <div class="card">
             <div class="card-header bg-info text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5>Produtos Disponíveis</h5>
-                    <span class="badge bg-light text-dark">{{ produtos|length }}</span>
-                </div>
+                <h5>Produtos Disponíveis</h5>
             </div>
             <div class="card-body p-0">
                 <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
@@ -220,10 +216,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const precoInput = document.getElementById('preco');
     const quantidadeInput = document.getElementById('quantidade');
 
-    // Dados de variações por produto (injetados via data attributes)
     const variacoesPorProduto = {};
 
-    // Coletar dados de variações dos options
     {% for produto in produtos %}
     {% if produto.tem_variacao %}
     variacoesPorProduto[{{ produto.pk }}] = [
@@ -294,16 +288,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-
-<style>
-    .list-group-item {
-        transition: all 0.2s;
-    }
-    .list-group-item:hover {
-        background-color: #f8f9fa;
-    }
-    .table tbody tr:hover {
-        background-color: rgba(0, 0, 0, 0.02);
-    }
-</style>
 {% endblock %}

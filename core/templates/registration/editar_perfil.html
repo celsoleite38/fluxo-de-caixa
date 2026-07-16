@@ -10,6 +10,25 @@
             <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
                 {% csrf_token %}
 
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% for field in form %}
+                    {% if field.errors %}
+                    <div class="alert alert-danger">
+                        <strong>{{ field.label }}:</strong>
+                        {% for error in field.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+
                 {% if messages %}
                     {% for message in messages %}
                         <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
@@ -77,9 +96,9 @@
                         <div class="mb-3">
                             <label for="{{ form.logotipo.id_for_label }}" class="form-label">Logotipo</label>
                             {{ form.logotipo }}
-                            {% if user.perfil.logotipo %}
+                            {% if perfil.logotipo %}
                                 <div class="mt-2">
-                                    <img src="{{ user.perfil.logotipo.url }}" alt="Logotipo" class="img-thumbnail" style="max-height:150px;">
+                                    <img src="{{ perfil.logotipo.url }}" alt="Logotipo" class="img-thumbnail" style="max-height:150px;">
                                 </div>
                             {% endif %}
                         </div>

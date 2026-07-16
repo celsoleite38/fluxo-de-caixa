@@ -499,6 +499,20 @@
                                 <i class="fas fa-boxes me-2"></i> Estoque
                             </a>
                         </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'variacao' in request.resolver_match.url_name %}active{% endif %}" 
+                               href="{% url 'tipo_variacao_list' %}">
+                                <i class="fas fa-tags me-2"></i> Variações
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link {% if 'orcamento' in request.resolver_match.url_name %}active{% endif %}"
+                               href="{% url 'lista_orcamentos' %}">
+                                <i class="fas fa-file-alt me-2"></i> Orçamentos
+                            </a>
+                        </li>
                         
                         <li class="nav-item mt-3">
                             <a class="nav-link btn btn-primary text-white fw-bold rounded-pill px-3" 
@@ -526,9 +540,9 @@
                         <span class="navbar-brand">
                             {% block page_title %}{% endblock %}
                             <span class="user-info-desktop">
-                                <strong>Bem-vindo(a),</strong>&nbsp;
+                                <strong><span class="text-white fw-bold">Bem-vindo(a),</span></strong>&nbsp;
                                 <span class="text-white fw-bold">
-                                    {{ request.user.get_full_name|default:request.user.username }}
+                                    {{ request.user.get_full_name|default:request.user.username }} da <font color="#dfe0aa">{{ perfil_empresa.Empresas }}</font>
                                 </span>
                             </span>
                         </span>

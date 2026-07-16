@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Orçamento #{{ orcamento.id|stringformat:"06d" }}</title>
+    <style>
+        @media print {
+            @page { size: A4; margin: 1.5cm; }
+            body { font-family: Arial, sans-serif; font-size: 11px; }
+            .no-print { display: none !important; }
+        }
+        body { font-family: Arial, sans-serif; font-size: 11px; margin: 0; padding: 20px; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 15px; }
+        .header h1 { margin: 0; font-size: 18px; }
+        .info { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        .info div { width: 48%; }
+        .info dt { font-weight: bold; display: inline; }
+        .info dd { display: inline; margin: 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+        th { background: #f0f0f0; }
+        .totals { text-align: right; margin-top: 10px; }
+        .totals .total-line { margin: 4px 0; }
+        .totals .total-final { font-size: 14px; font-weight: bold; border-top: 2px solid #333; padding-top: 5px; }
+        .footer { text-align: center; margin-top: 30px; border-top: 1px solid #ccc; padding-top: 10px; font-size: 10px; color: #666; }
+        .btn-print { display: block; margin: 20px auto; padding: 10px 30px; font-size: 14px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button class="btn-print" onclick="window.print()">Imprimir</button>
+    </div>
+
+    <div class="header">
+        {% if perfil_empresa and perfil_empresa.logotipo %}
+        <img src="{{ perfil_empresa.logotipo.url }}" style="max-height: 60px; margin-bottom: 5px;">
+        {% endif %}
+        <h1>ORÇAMENTO #{{ orcamento.id|stringformat:"06d" }}</h1>
+        {% if perfil_empresa %}
+        <p style="margin: 2px 0;">{{ perfil_empresa.Empresas }}</p>
+        {% if perfil_empresa.CNPJ %}<p style="margin: 2px 0;">CNPJ: {{ perfil_empresa.CNPJ }}</p>{% endif %}
+        {% if perfil_empresa.telefone %}<p style="margin: 2px 0;">Tel: {{ perfil_empresa.telefone }}</p>{% endif %}
+        {% endif %}
+        <p>{{ orcamento.get_status_display }}</p>
+    </div>
+
+    <div class="info">
+        <div>
+            <dl>
+                <dt>Cliente:</dt> <dd>{{ orcamento.cliente }}</dd><br>
+                <dt>Data:</dt> <dd>{{ orcamento.data|date:"d/m/Y H:i" }}</dd><br>
+                {% if orcamento.validade %}
+                <dt>Validade:</dt> <dd>{{ orcamento.validade|date:"d/m/Y" }}</dd><br>
+                {% endif %}
+            </dl>
+        </div>
+        <div style="text-align: right;">
+            <dl>
+                <dt>Vendedor:</dt> <dd>{{ orcamento.usuario.get_full_name|default:orcamento.usuario.username }}</dd><br>
+                <dt>Telefone:</dt> <dd>{{ orcamento.usuario.perfil.telefone|default:"-" }}</dd>
+            </dl>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Produto</th>
+                <th>SKU</th>
+                <th style="text-align:center">Qtd</th>
+                <th style="text-align:right">Preço Unit.</th>
+                <th style="text-align:right">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in itens %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>
+                    {{ item.produto.nome }}
+                    {% if item.variacao %}<br><small>({{ item.variacao.descricao_variacao }})</small>{% endif %}
+                </td>
+                <td>{{ item.sku_display }}</td>
+                <td style="text-align:center">{{ item.quantidade }}</td>
+                <td style="text-align:right">R$ {{ item.preco_unitario|floatformat:2 }}</td>
+                <td style="text-align:right">R$ {{ item.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="totals">
+        <div class="total-line">Subtotal: R$ {{ orcamento.total|floatformat:2 }}</div>
+        {% if orcamento.desconto > 0 %}
+        <div class="total-line" style="color: red;">Desconto: - R$ {{ orcamento.desconto|floatformat:2 }}</div>
+        <div class="total-final">TOTAL: R$ {{ orcamento.total_com_desconto|floatformat:2 }}</div>
+        {% else %}
+        <div class="total-final">TOTAL: R$ {{ orcamento.total|floatformat:2 }}</div>
+        {% endif %}
+    </div>
+
+    {% if orcamento.observacao %}
+    <div style="margin-top: 15px;">
+        <strong>Observação:</strong> {{ orcamento.observacao }}
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        <p>Orcamento gerado em {{ orcamento.data|date:"d/m/Y à\s H:i" }}</p>
+    </div>
+</body>
+</html>

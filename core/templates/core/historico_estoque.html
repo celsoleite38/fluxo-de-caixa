@@ -50,7 +50,12 @@
                 {% for movimento in movimentos %}
                 <tr>
                     <td>{{ movimento.data|date:"d/m/Y H:i" }}</td>
-                    <td>{{ movimento.produto.nome }}</td>
+                    <td>
+                        {{ movimento.produto.nome }}
+                        {% if movimento.variacao %}
+                            <br><small class="text-muted"><span class="badge bg-info">{{ movimento.variacao.sku }}</span></small>
+                        {% endif %}
+                    </td>
                     <td class="{% if movimento.tipo == 'saida' %}text-danger{% else %}text-success{% endif %}">
                         {% if movimento.tipo == 'saida' %}-{% else %}+{% endif %}{{ movimento.quantidade }}
                     </td>
@@ -59,6 +64,8 @@
                             <span class="badge bg-info">Cadastro Inicial</span>
                         {% elif movimento.tipo == 'entrada' %}
                             <span class="badge bg-success">Entrada Avulsa</span>
+                        {% elif movimento.tipo == 'correcao' %}
+                            <span class="badge bg-warning text-dark">Correção</span>
                         {% else %}
                             <span class="badge bg-danger">Saída</span>
                         {% endif %}

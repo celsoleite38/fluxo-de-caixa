@@ -1,0 +1,336 @@
+{% extends "core/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Cabeçalho do Produto -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4><i class="fas fa-box me-2"></i>Variações: {{ produto.nome }}</h4>
+                <a href="{% url 'estoque' %}" class="btn btn-light btn-sm">
+                    <i class="fas fa-arrow-left"></i> Voltar
+                </a>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Preço Base:</dt>
+                    <dd class="col-sm-9">R$ {{ produto.preco|intcomma }}</dd>
+                    <dt class="col-sm-3">SKU Base:</dt>
+                    <dd class="col-sm-9">{{ produto.sku_base|default:"-" }}</dd>
+                    <dt class="col-sm-3">Variações:</dt>
+                    <dd class="col-sm-9">
+                        {% for tipo in tipos %}
+                            <span class="badge bg-info me-1">{{ tipo.nome }}</span>
+                        {% endfor %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Tabela de Variações -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Grade de Variações</h5>
+            </div>
+            <div class="card-body">
+                {% if variacoes %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>SKU</th>
+                                <th>Variação</th>
+                                <th>Preço</th>
+                                <th>Estoque</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in variacoes %}
+                            <tr class="{% if v.quantidade <= 0 %}table-danger{% elif v.quantidade <= 3 %}table-warning{% endif %}">
+                                <td><code>{{ v.sku }}</code></td>
+                                <td>{{ v.descricao_variacao }}</td>
+                                <td>
+                                    {% if v.preco %}
+                                        R$ {{ v.preco|intcomma }}
+                                    {% else %}
+                                        <span class="text-muted">R$ {{ produto.preco|intcomma }} (base)</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <strong>{{ v.quantidade }}</strong>
+                                </td>
+                                <td>
+                                    {% if v.ativo %}
+                                        <span class="badge bg-success">Ativo</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inativo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{% url 'entrada_variacao_estoque' v.pk %}" class="btn btn-sm btn-success"
+                                       title="Entrada de Estoque">
+                                        <i class="fas fa-plus-circle"></i>
+                                    </a>
+                                    <a href="{% url 'corrigir_estoque_variacao' v.pk %}" class="btn btn-sm btn-warning"
+                                       title="Corrigir Estoque">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <form method="post" action="{% url 'produto_variacao_delete' v.pk %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-danger"
+                                                onclick="return confirm('Tem certeza que deseja excluir a variação {{ v.sku }}?')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-light">
+                                <td colspan="3"><strong>Total em Estoque:</strong></td>
+                                <td>
+                                    <strong>
+                                        {% with total=0 %}
+                                            {% for v in variacoes %}
+                                                {% if v.ativo %}
+                                                    {% with total=total|add:v.quantidade %}{% endwith %}
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endwith %}
+                                        {% for v in variacoes %}{% if forloop.first %}{% endif %}{% endfor %}
+                                    </strong>
+                                </td>
+                                <td colspan="2"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Nenhuma variação criada para este produto. Use o formulário abaixo ou gere a grade automaticamente.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Painel Lateral: Adicionar Variação -->
+    <div class="col-lg-4">
+        <!-- Gerar Grade Automática -->
+        {% if tipos %}
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="fas fa-magic me-2"></i>Gerar Grade Automática</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Selecione os valores de cada tipo que deseja incluir na grade.
+                    Apenas as combinações dos valores marcados serão geradas.
+                </p>
+
+                <form method="post" action="{% url 'gerar_grade' produto.pk %}" id="formGerarGrade">
+                    {% csrf_token %}
+
+                    {% for tipo in tipos %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <strong class="small">{{ tipo.nome }}</strong>
+                            <div class="d-flex align-items-center gap-1">
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none toggle-tipo"
+                                        data-tipo="{{ tipo.pk }}">
+                                    Marcar todos
+                                </button>
+                            </div>
+                        </div>
+                        <div class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                            {% for valor in tipo.valores.all %}
+                            <div class="form-check">
+                                <input class="form-check-input valor-checkbox" type="checkbox"
+                                       name="valores_tipo_{{ tipo.pk }}" value="{{ valor.pk }}"
+                                       id="gt_{{ tipo.pk }}_{{ valor.pk }}" checked>
+                                <label class="form-check-label small" for="gt_{{ tipo.pk }}_{{ valor.pk }}">
+                                    {{ valor.valor }}
+                                </label>
+                            </div>
+                            {% empty %}
+                            <small class="text-muted">Nenhum valor cadastrado para este tipo.</small>
+                            {% endfor %}
+                        </div>
+                        <form method="post" action="{% url 'adicionar_valor_rapido' produto.pk tipo.pk %}" 
+                              class="input-group input-group-sm mt-1">
+                            {% csrf_token %}
+                            <input type="text" class="form-control form-control-sm" name="valor"
+                                   placeholder="Novo valor (ex: Rosa)" required>
+                            <button type="submit" class="btn btn-outline-success btn-sm" title="Adicionar valor">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </form>
+                    </div>
+                    {% endfor %}
+
+                    <div class="alert alert-info py-2 mb-3">
+                        <i class="fas fa-calculator me-1"></i>
+                        <strong id="qtdCombinacoes">0</strong> combinação(ões) será(ão) gerada(s)
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100"
+                            id="btnGerarGrade">
+                        <i class="fas fa-magic me-2"></i>Gerar Grade
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('formGerarGrade');
+            const checkboxes = form.querySelectorAll('.valor-checkbox');
+            const display = document.getElementById('qtdCombinacoes');
+            const btnGerar = document.getElementById('btnGerarGrade');
+
+            function calcularCombinacoes() {
+                const tiposGrupos = {};
+                checkboxes.forEach(function(cb) {
+                    const name = cb.name;
+                    if (!tiposGrupos[name]) tiposGrupos[name] = 0;
+                    if (cb.checked) tiposGrupos[name]++;
+                });
+
+                let total = 1;
+                let temTipo = false;
+                for (const key in tiposGrupos) {
+                    if (tiposGrupos[key] > 0) {
+                        total *= tiposGrupos[key];
+                        temTipo = true;
+                    }
+                }
+
+                if (!temTipo) total = 0;
+                display.textContent = total;
+
+                btnGerar.disabled = total === 0;
+                if (total === 0) {
+                    btnGerar.classList.add('disabled');
+                } else {
+                    btnGerar.classList.remove('disabled');
+                }
+            }
+
+            checkboxes.forEach(function(cb) {
+                cb.addEventListener('change', calcularCombinacoes);
+            });
+
+            document.querySelectorAll('.toggle-tipo').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const tipoPk = this.getAttribute('data-tipo');
+                    const group = form.querySelectorAll('input[name="valores_tipo_' + tipoPk + '"]');
+                    const allChecked = Array.from(group).every(function(cb) { return cb.checked; });
+                    group.forEach(function(cb) { cb.checked = !allChecked; });
+                    this.textContent = allChecked ? 'Marcar todos' : 'Desmarcar todos';
+                    calcularCombinacoes();
+                });
+            });
+
+            calcularCombinacoes();
+
+            form.addEventListener('submit', function(e) {
+                const total = parseInt(display.textContent);
+                if (total === 0) {
+                    e.preventDefault();
+                    alert('Selecione ao menos um valor de cada tipo para gerar a grade.');
+                    return;
+                }
+                if (!confirm('Gerar ' + total + ' combinação(ões)?')) {
+                    e.preventDefault();
+                }
+            });
+        });
+        </script>
+        {% endif %}
+
+        <!-- Adicionar Variação Manual -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="fas fa-plus me-2"></i>Adicionar Variação</h6>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="adicionar" value="1">
+
+                    <div class="mb-3">
+                        <label class="form-label">SKU</label>
+                        {{ form.sku }}
+                        {% if form.sku.errors %}
+                            <div class="text-danger">{{ form.sku.errors }}</div>
+                        {% endif %}
+                        <small class="text-muted">Ex: {{ produto.sku_base }}-38-VMD</small>
+                    </div>
+
+                    {% if tipos %}
+                    <div class="mb-3">
+                        <label class="form-label">Valores</label>
+                        <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                            {% for tipo in tipos %}
+                                <div class="mb-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <strong class="small text-muted">{{ tipo.nome }}:</strong>
+                                    </div>
+                                    {% for valor in tipo.valores.all %}
+                                        <div class="form-check ms-2">
+                                            <input class="form-check-input" type="checkbox"
+                                                   name="valores" value="{{ valor.pk }}"
+                                                   id="val_{{ valor.pk }}">
+                                            <label class="form-check-label small" for="val_{{ valor.pk }}">
+                                                {{ valor.valor }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                    <form method="post" action="{% url 'adicionar_valor_rapido' produto.pk tipo.pk %}" 
+                                          class="input-group input-group-sm mt-1 ms-2">
+                                        {% csrf_token %}
+                                        <input type="text" class="form-control form-control-sm" name="valor"
+                                               placeholder="Novo valor..." required>
+                                        <button type="submit" class="btn btn-outline-success btn-sm" title="Adicionar">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        {% if form.valores.errors %}
+                            <div class="text-danger">{{ form.valores.errors }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label">Preço (deixe vazio para usar o base)</label>
+                        {{ form.preco }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Quantidade</label>
+                        {{ form.quantidade }}
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        {{ form.ativo }}
+                        <label class="form-check-label" for="id_ativo">Ativo</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-save me-2"></i>Adicionar Variação
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

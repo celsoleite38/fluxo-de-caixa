@@ -1,0 +1,37 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header bg-success text-white">
+        <h4><i class="fas fa-plus-circle me-2"></i>Entrada no Estoque</h4>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <strong>Produto:</strong> {{ variacao.produto.nome }}<br>
+            <strong>Variação (SKU):</strong> {{ variacao.sku }} - {{ variacao.descricao_variacao }}<br>
+            <strong>Estoque atual:</strong> {{ variacao.quantidade }} un.
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+                {{ form.quantidade.label_tag }}
+                {{ form.quantidade }}
+                {% if form.quantidade.errors %}
+                    <div class="text-danger">{{ form.quantidade.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-check-circle"></i> Registrar Entrada
+                </button>
+                <a href="{% url 'produto_variacoes' produto_pk=variacao.produto.pk %}" class="btn btn-secondary">
+                    <i class="fas fa-times-circle"></i> Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
