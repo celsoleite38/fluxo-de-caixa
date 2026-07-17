@@ -65,7 +65,9 @@
                     <tr>
                         <th>Produto</th>
                         <th>Descrição</th>
-                        <th>Preço</th>
+                        <th class="text-end">Preco Compra</th>
+                        <th class="text-end">Preco Venda</th>
+                        <th class="text-end">Lucro</th>
                         <th>Estoque</th>
                         <th>Ações</th>
                     </tr>
@@ -81,11 +83,21 @@
                             {% endif %}
                         </td>
                         <td>{{ produto.descricao|truncatechars:50 }}</td>
-                        <td>
+                        <td class="text-end">R$ {{ produto.preco_compra|intcomma }}</td>
+                        <td class="text-end">
                             {% if produto.tem_variacao %}
-                                A partir de R$ {{ produto.preco_minimo|intcomma }}
+                                R$ {{ produto.preco_minimo|intcomma }}
                             {% else %}
                                 R$ {{ produto.preco|intcomma }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if produto.preco_compra > 0 %}
+                                <span class="{% if produto.lucro >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    R$ {{ produto.lucro|intcomma }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">-</span>
                             {% endif %}
                         </td>
                         <td>
@@ -135,14 +147,16 @@
                     <!-- Linhas das Variações (colapsaveis) -->
                     {% if produto.tem_variacao %}
                     <tr class="collapse" id="vars-{{ produto.pk }}">
-                        <td colspan="5" class="p-0">
+                        <td colspan="7" class="p-0">
                             <div class="p-3 bg-light">
                                 <table class="table table-sm mb-0">
                                     <thead>
                                         <tr>
                                             <th>SKU</th>
                                             <th>Variação</th>
-                                            <th>Preço</th>
+                                            <th class="text-end">Preco Compra</th>
+                                            <th class="text-end">Preco Venda</th>
+                                            <th class="text-end">Lucro</th>
                                             <th>Estoque</th>
                                             <th>Ações</th>
                                         </tr>
@@ -153,11 +167,21 @@
                                         <tr class="{% if v.quantidade <= 0 %}table-danger{% elif v.quantidade <= 3 %}table-warning{% endif %}">
                                             <td><code>{{ v.sku }}</code></td>
                                             <td>{{ v.descricao_variacao }}</td>
-                                            <td>
+                                            <td class="text-end">R$ {{ v.preco_compra_efetivo|intcomma }}</td>
+                                            <td class="text-end">
                                                 {% if v.preco %}
                                                     R$ {{ v.preco|intcomma }}
                                                 {% else %}
                                                     <span class="text-muted">R$ {{ produto.preco|intcomma }} (base)</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                {% if v.preco_compra_efetivo > 0 %}
+                                                    <span class="{% if v.lucro >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                        R$ {{ v.lucro|intcomma }}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
                                                 {% endif %}
                                             </td>
                                             <td>
@@ -189,7 +213,7 @@
 
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">
+                        <td colspan="7" class="text-center text-muted py-4">
                             <i class="fas fa-box-open fa-2x mb-2 d-block"></i>
                             Nenhum produto encontrado.
                         </td>

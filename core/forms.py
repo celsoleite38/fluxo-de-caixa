@@ -42,16 +42,40 @@ class CategoriaForm(forms.ModelForm):
 
 
 class ProdutoForm(forms.ModelForm):
+    tipos_variacao_ids = forms.CharField(
+        required=False, widget=forms.HiddenInput,
+        help_text='JSON com IDs dos tipos de variacao selecionados'
+    )
+    valores_por_tipo = forms.CharField(
+        required=False, widget=forms.HiddenInput,
+        help_text='JSON {tipo_id: [valor_id, ...]}'
+    )
+    quantidades_variacoes = forms.CharField(
+        required=False, widget=forms.HiddenInput,
+        help_text='JSON {"valor_id1-valor_id2": quantidade}'
+    )
+    novos_tipos = forms.CharField(
+        required=False, widget=forms.HiddenInput,
+        help_text='JSON com nomes de novos tipos a criar'
+    )
+    novos_valores = forms.CharField(
+        required=False, widget=forms.HiddenInput,
+        help_text='JSON {tipo_nome: [valor1, ...]}'
+    )
+
     class Meta:
         model = Produto
-        fields = ['nome', 'descricao', 'preco', 'quantidade', 'tem_variacao',
-                  'tipos_variacao', 'sku_base', 'unidade_medida']
+        fields = ['nome', 'descricao', 'preco', 'preco_compra', 'quantidade', 'tem_variacao',
+                  'sku_base', 'unidade_medida']
         widgets = {
-            'tem_variacao': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'tipos_variacao': forms.CheckboxSelectMultiple(),
+            'tem_variacao': forms.CheckboxInput(attrs={
+                'class': 'form-check-input',
+                'onchange': 'toggleVariacao()'
+            }),
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
-            'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
             'preco': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'preco_compra': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'quantidade': forms.NumberInput(attrs={'class': 'form-control'}),
             'sku_base': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: TNK-NIKE'}),
             'unidade_medida': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'UN, KG, LT'}),
@@ -61,7 +85,9 @@ class ProdutoForm(forms.ModelForm):
         self.usuario = kwargs.pop('usuario', None)
         super().__init__(*args, **kwargs)
         if self.usuario:
-            self.fields['tipos_variacao'].queryset = TipoVariacao.objects.filter(usuario=self.usuario)
+            self.tipos_disponiveis = TipoVariacao.objects.filter(usuario=self.usuario)
+        else:
+            self.tipos_disponiveis = TipoVariacao.objects.none()
     
     def save(self, commit=True):
         produto = super().save(commit=False)

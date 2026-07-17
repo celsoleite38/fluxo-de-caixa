@@ -225,6 +225,20 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
+                <button class="nav-link" id="lucro-tab" data-bs-toggle="tab" 
+                        data-bs-target="#lucro" type="button" role="tab" aria-controls="lucro" 
+                        aria-selected="false">
+                    <i class="fas fa-chart-line me-2"></i>Lucro
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="vendas-periodo-tab" data-bs-toggle="tab" 
+                        data-bs-target="#vendas-periodo" type="button" role="tab" aria-controls="vendas-periodo" 
+                        aria-selected="false">
+                    <i class="fas fa-calendar-alt me-2"></i>Vendas por Periodo
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
                 <a class="nav-link" href="{% url 'lista_todas_vendas' %}">
                     <i class="fas fa-list me-2"></i>Status de Vendas
                 </a>
@@ -554,13 +568,161 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Relatório de Lucro -->
+                <div class="tab-pane fade" id="lucro" role="tabpanel" aria-labelledby="lucro-tab">
+                    <div class="row mb-4 g-3">
+                        <div class="col-lg-3 col-md-6">
+                            <div class="card report-summary-card bg-danger text-white hover-lift">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-shopping-bag fa-2x mb-2"></i>
+                                    <h5 class="card-title">Custo Total</h5>
+                                    <p class="card-text">R$ {{ total_custo|floatformat:2 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <div class="card report-summary-card bg-primary text-white hover-lift">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-dollar-sign fa-2x mb-2"></i>
+                                    <h5 class="card-title">Receita Total</h5>
+                                    <p class="card-text">R$ {{ total_receita|floatformat:2 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <div class="card report-summary-card bg-success text-white hover-lift">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-chart-line fa-2x mb-2"></i>
+                                    <h5 class="card-title">Lucro Total</h5>
+                                    <p class="card-text">R$ {{ total_lucro|floatformat:2 }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                            <div class="card report-summary-card bg-info text-white hover-lift">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-percentage fa-2x mb-2"></i>
+                                    <h5 class="card-title">Margem Geral</h5>
+                                    <p class="card-text">{{ margem_geral|floatformat:1 }}%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card shadow-sm fade-in">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Lucro por Produto</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Produto</th>
+                                            <th class="text-center">Qtd Vendida</th>
+                                            <th class="text-end">Custo Total</th>
+                                            <th class="text-end">Receita Total</th>
+                                            <th class="text-end">Lucro</th>
+                                            <th class="text-center">Margem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in lucro_produtos %}
+                                        <tr>
+                                            <td>{{ item.produto.nome }}</td>
+                                            <td class="text-center">{{ item.qtd_vendida }}</td>
+                                            <td class="text-end text-danger">R$ {{ item.total_compra|floatformat:2 }}</td>
+                                            <td class="text-end text-primary">R$ {{ item.total_venda|floatformat:2 }}</td>
+                                            <td class="text-end fw-bold {% if item.lucro >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                                R$ {{ item.lucro|floatformat:2 }}
+                                            </td>
+                                            <td class="text-center">
+                                                {% if item.margem >= 0 %}
+                                                    <span class="badge bg-success">{{ item.margem|floatformat:1 }}%</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">{{ item.margem|floatformat:1 }}%</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="6" class="text-center text-muted py-4">
+                                                <i class="fas fa-chart-line fa-3x mb-2"></i><br>
+                                                Nenhuma venda com preco de compra cadastrado no periodo.
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                        <tr class="fw-bold table-secondary">
+                                            <td>Total Geral</td>
+                                            <td></td>
+                                            <td class="text-end text-danger">R$ {{ total_custo|floatformat:2 }}</td>
+                                            <td class="text-end text-primary">R$ {{ total_receita|floatformat:2 }}</td>
+                                            <td class="text-end text-success">R$ {{ total_lucro|floatformat:2 }}</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-info">{{ margem_geral|floatformat:1 }}%</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Relatório de Vendas por Periodo -->
+                <div class="tab-pane fade" id="vendas-periodo" role="tabpanel" aria-labelledby="vendas-periodo-tab">
+                    <div class="card shadow-sm fade-in">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Vendas por Dia</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Data</th>
+                                            <th class="text-center">Quantidade de Vendas</th>
+                                            <th class="text-end">Valor Total</th>
+                                            <th class="text-end">Ticket Medio</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for dia in vendas_por_dia %}
+                                        <tr>
+                                            <td>{{ dia.data_venda|date:"d/m/Y" }}</td>
+                                            <td class="text-center">{{ dia.quantidade }}</td>
+                                            <td class="text-end fw-bold text-primary">R$ {{ dia.total|floatformat:2 }}</td>
+                                            <td class="text-end">
+                                                R$ {{ dia.ticket_medio|floatformat:2 }}
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted py-4">
+                                                <i class="fas fa-calendar-alt fa-3x mb-2"></i><br>
+                                                Nenhuma venda encontrada no periodo selecionado.
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="fw-bold table-secondary">
+                                            <td>Total</td>
+                                            <td class="text-center">{{ qtd_vendas }}</td>
+                                            <td class="text-end text-primary">R$ {{ total_vendas|floatformat:2 }}</td>
+                                            <td class="text-end">
+                                                R$ {{ ticket_medio_geral|floatformat:2 }}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                            <canvas id="vendasPeriodoChart" class="mt-3" style="max-height:300px;"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</div>
-
 {% endblock %}
-
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
@@ -621,6 +783,41 @@
                         title: {
                             display: true,
                             text: "Visão Geral Financeira"
+                        }
+                    }
+                }
+            });
+        }
+
+        // Grafico de vendas por periodo
+        const ctxVendas = document.getElementById("vendasPeriodoChart");
+        if (ctxVendas) {
+            new Chart(ctxVendas, {
+                type: "bar",
+                data: {
+                    labels: [{% for dia in vendas_por_dia %}'{{ dia.data_venda|date:"d/m" }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+                    datasets: [{
+                        label: "Vendas (R$)",
+                        data: [{% for dia in vendas_por_dia %}{{ dia.total|floatformat:2 }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                        backgroundColor: "rgba(54, 162, 235, 0.7)",
+                        borderColor: "rgba(54, 162, 235, 1)",
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: "Vendas por Dia"
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) { return 'R$ ' + value.toFixed(2); }
+                            }
                         }
                     }
                 }

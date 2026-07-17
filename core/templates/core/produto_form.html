@@ -3,10 +3,10 @@
 {% block content %}
 <div class="card mb-4">
     <div class="card-header">
-        <h4>{% if form.instance.id %}Editar{% else %}Adicionar{% endif %} Produto</h4>
+        <h4><i class="fas fa-box me-2"></i>{% if editar %}Editar{% else %}Novo{% endif %} Produto</h4>
     </div>
     <div class="card-body">
-        <form method="post">
+        <form method="post" id="produtoForm">
             {% csrf_token %}
             
             {% if form.non_field_errors %}
@@ -16,114 +16,485 @@
                 {% endfor %}
             </div>
             {% endif %}
+
+            {{ form.tipos_variacao_ids }}
+            {{ form.valores_por_tipo }}
+            {{ form.quantidades_variacoes }}
+            {{ form.novos_tipos }}
+            {{ form.novos_valores }}
             
+            <!-- DADOS BASICOS -->
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="id_nome" class="form-label">Nome</label>
+                    <label for="id_nome" class="form-label">Nome do Produto *</label>
                     {{ form.nome }}
-                    {% if form.nome.errors %}
-                        <div class="text-danger">{{ form.nome.errors }}</div>
-                    {% endif %}
+                    {% if form.nome.errors %}<div class="text-danger small">{{ form.nome.errors }}</div>{% endif %}
                 </div>
-                
-                <div class="col-md-6 mb-3">
-                    <label for="id_preco" class="form-label">Preço Base (R$)</label>
+                <div class="col-md-3 mb-3">
+                    <label for="id_preco_compra" class="form-label">Preco de Compra (R$)</label>
+                    <div class="input-group">
+                        <span class="input-group-text">R$</span>
+                        {{ form.preco_compra }}
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label for="id_preco" class="form-label">Preco de Venda (R$) *</label>
                     <div class="input-group">
                         <span class="input-group-text">R$</span>
                         {{ form.preco }}
                     </div>
-                    {% if form.preco.errors %}
-                        <div class="text-danger">{{ form.preco.errors }}</div>
-                    {% endif %}
+                    {% if form.preco.errors %}<div class="text-danger small">{{ form.preco.errors }}</div>{% endif %}
                 </div>
             </div>
-            
+
             <div class="mb-3">
-                <label for="id_descricao" class="form-label">Descrição</label>
+                <label for="id_descricao" class="form-label">Descricao</label>
                 {{ form.descricao }}
-                {% if form.descricao.errors %}
-                    <div class="text-danger">{{ form.descricao.errors }}</div>
-                {% endif %}
             </div>
 
-            {% if not editar or not produto.tem_variacao %}
-            <div class="mb-3">
-                <label for="id_quantidade" class="form-label">Quantidade em Estoque</label>
-                {{ form.quantidade }}
-                {% if form.quantidade.errors %}
-                    <div class="text-danger">{{ form.quantidade.errors }}</div>
-                {% endif %}
-                {% if produto and produto.tem_variacao %}
-                <small class="text-muted">Este produto usa variações. O estoque é gerenciado por cada variação individualmente.</small>
-                {% endif %}
-            </div>
-            {% endif %}
-
-            <hr>
-            <h5 class="mb-3"><i class="fas fa-tags me-2"></i>Variações (Grade)</h5>
-            
             <div class="row">
-                <div class="col-md-4 mb-3">
-                    <div class="form-check form-switch">
-                        {{ form.tem_variacao }}
-                        <label class="form-check-label" for="id_tem_variacao">
-                            <strong>Produto com variação</strong>
-                        </label>
-                    </div>
-                    <small class="text-muted">Ative para produtos com tamanhos, cores, sabores, etc.</small>
-                </div>
-                
                 <div class="col-md-4 mb-3">
                     <label for="id_sku_base" class="form-label">SKU Base</label>
                     {{ form.sku_base }}
-                    {% if form.sku_base.errors %}
-                        <div class="text-danger">{{ form.sku_base.errors }}</div>
-                    {% endif %}
-                    <small class="text-muted">Ex: TNK-NIKE (será usado no início do SKU de cada variação)</small>
+                    <small class="text-muted">Ex: CONTRABASS (opcional)</small>
                 </div>
-                
                 <div class="col-md-4 mb-3">
                     <label for="id_unidade_medida" class="form-label">Unidade</label>
                     {{ form.unidade_medida }}
                 </div>
+                <div class="col-md-4 mb-3" id="campoQuantidade">
+                    <label for="id_quantidade" class="form-label">Quantidade em Estoque</label>
+                    {{ form.quantidade }}
+                    {% if form.quantidade.errors %}<div class="text-danger small">{{ form.quantidade.errors }}</div>{% endif %}
+                </div>
             </div>
 
-            <div class="mb-3">
-                <label class="form-label">Tipos de Variação</label>
-                <div class="border rounded p-3">
-                    {% for checkbox in form.tipos_variacao %}
-                    <div class="form-check form-check-inline">
-                        {{ checkbox }}
-                        <label class="form-check-label" for="{{ checkbox.id_for_label }}">
-                            {{ checkbox.choice_label }}
-                        </label>
-                    </div>
-                    {% empty %}
-                    <p class="text-muted mb-0">
-                        Nenhum tipo de variação cadastrado.
-                        <a href="{% url 'tipo_variacao_create' %}">Criar novo tipo</a>
-                    </p>
-                    {% endfor %}
-                </div>
-                <small class="text-muted">Selecione quais tipos de variação este produto utiliza (ex: Tamanho, Cor).</small>
+            <!-- VARIACAO -->
+            <hr>
+            {% if editar and produto.tem_variacao %}
+            <div class="alert alert-info py-2 mb-3">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Produto com grade ativa.</strong> Para gerenciar variacoes, acesse:
+                <a href="{% url 'produto_variacoes' produto_pk=produto.pk %}" class="btn btn-sm btn-outline-primary ms-2">
+                    <i class="fas fa-cogs"></i> Gerenciar Variacoes
+                </a>
             </div>
-            
-            <div class="d-flex justify-content-between">
-                <div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> {% if form.instance.id %}Atualizar{% else %}Salvar{% endif %}
-                    </button>
-                    {% if editar and produto and produto.tem_variacao %}
-                    <a href="{% url 'produto_variacoes' produto_pk=produto.pk %}" class="btn btn-info">
-                        <i class="fas fa-cogs"></i> Gerenciar Variações
-                    </a>
-                    {% endif %}
+            <div class="d-flex align-items-center mb-3">
+                <div class="form-check form-switch me-3">
+                    {{ form.tem_variacao }}
+                    <label class="form-check-label fw-bold" for="id_tem_variacao">
+                        Este produto tem variacao (tamanho, cor, material, etc.)
+                    </label>
                 </div>
+            </div>
+            {% else %}
+            <div class="d-flex align-items-center mb-3">
+                <div class="form-check form-switch me-3">
+                    {{ form.tem_variacao }}
+                    <label class="form-check-label fw-bold" for="id_tem_variacao">
+                        Este produto tem variacao (tamanho, cor, material, etc.)
+                    </label>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if editar and produto.tem_variacao %}
+            <!-- Produto ja tem grade: nao mostrar secao de criacao -->
+            {% else %}
+            <div id="secaoVariacao" style="display: {% if form.tem_variacao.value %}block{% else %}none{% endif %};">
+                
+                <!-- Selecionar tipos existentes -->
+                <div class="card mb-3">
+                    <div class="card-header bg-light py-2">
+                        <strong><i class="fas fa-list me-2"></i>Tipos de Variacao</strong>
+                        <small class="text-muted">— Selecione os tipos ou crie novos</small>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="row">
+                            <div class="col-md-8">
+                                {% for tipo in tipos_disponiveis %}
+                                <div class="form-check form-check-inline mb-1">
+                                    <input class="form-check-input tipo-check" type="checkbox"
+                                           value="{{ tipo.id }}" id="tipo_{{ tipo.id }}"
+                                           onchange="atualizarTipos()">
+                                    <label class="form-check-label" for="tipo_{{ tipo.id }}">{{ tipo.nome }}</label>
+                                </div>
+                                {% empty %}
+                                <span class="text-muted">Nenhum tipo cadastrado ainda.</span>
+                                {% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" id="novoTipoInput"
+                                           placeholder="Novo tipo..." maxlength="50">
+                                    <button type="button" class="btn btn-outline-success btn-sm"
+                                            onclick="adicionarTipo()">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Novos tipos adicionados -->
+                        <div id="novosTiposContainer" class="mt-2"></div>
+                    </div>
+                </div>
+
+                <!-- Valores por tipo -->
+                <div id="secaoValores" class="card mb-3" style="display:none;">
+                    <div class="card-header bg-light py-2">
+                        <strong><i class="fas fa-tag me-2"></i>Valores por Tipo</strong>
+                    </div>
+                    <div class="card-body py-2" id="valoresContainer">
+                    </div>
+                </div>
+
+                <!-- Grade de quantidades -->
+                <div id="secaoGrade" class="card mb-3" style="display:none;">
+                    <div class="card-header bg-light py-2">
+                        <strong><i class="fas fa-table me-2"></i>Grade — Quantidade por Variacao</strong>
+                    </div>
+                    <div class="card-body py-2" id="gradeContainer">
+                        <p class="text-muted mb-0">Selecione tipos e valores acima para gerar a grade.</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- BOTOES -->
+            <div class="d-flex justify-content-between mt-3">
                 <a href="{% url 'estoque' %}" class="btn btn-secondary">
                     <i class="fas fa-times-circle"></i> Cancelar
                 </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> {% if editar %}Atualizar{% else %}Salvar{% endif %}
+                </button>
             </div>
         </form>
     </div>
 </div>
+
+<script>
+// Estado
+let tiposSelecionados = [];
+let valoresPorTipo = {};  // {tipo_id: [{id, valor}, ...]}
+let novosTipos = [];      // [nome, ...]
+let novosValores = {};    // {tipo_nome: [valor, ...]}
+
+function toggleVariacao() {
+    const checked = document.getElementById('id_tem_variacao').checked;
+    document.getElementById('secaoVariacao').style.display = checked ? 'block' : 'none';
+    document.getElementById('campoQuantidade').style.display = checked ? 'none' : 'block';
+    if (checked) {
+        document.getElementById('id_quantidade').value = '0';
+    }
+}
+
+function atualizarTipos() {
+    tiposSelecionados = [];
+    document.querySelectorAll('.tipo-check:checked').forEach(cb => {
+        tiposSelecionados.push(parseInt(cb.value));
+    });
+    // Adicionar tipos novos (todos entram)
+    novosTipos.forEach(nome => {
+        tiposSelecionados.push('novo_' + nome);
+    });
+    buscarValores();
+    gerarGrade();
+}
+
+function adicionarTipo() {
+    const input = document.getElementById('novoTipoInput');
+    const nome = input.value.trim();
+    if (!nome) return;
+    
+    // Verificar duplicata
+    const existentes = document.querySelectorAll('.tipo-check');
+    for (let cb of existentes) {
+        if (cb.parentElement.textContent.trim().toLowerCase() === nome.toLowerCase()) {
+            alert('Tipo ja existe!');
+            return;
+        }
+    }
+    if (novosTipos.includes(nome)) {
+        alert('Tipo ja adicionado!');
+        return;
+    }
+    
+    novosTipos.push(nome);
+    input.value = '';
+    
+    // Mostrar chip
+    const container = document.getElementById('novosTiposContainer');
+    const chip = document.createElement('span');
+    chip.className = 'badge bg-success me-1 mb-1';
+    chip.innerHTML = nome + ' <button type="button" class="btn-close btn-close-white ms-1" style="font-size:0.6em" onclick="removerNovoTipo(this, \'' + nome + '\')"></button>';
+    chip.dataset.tipoNome = nome;
+    container.appendChild(chip);
+    
+    tiposSelecionados.push('novo_' + nome);
+    buscarValores();
+    gerarGrade();
+}
+
+function removerNovoTipo(btn, nome) {
+    novosTipos = novosTipos.filter(t => t !== nome);
+    btn.parentElement.remove();
+    tiposSelecionados = tiposSelecionados.filter(t => t !== 'novo_' + nome);
+    buscarValores();
+    gerarGrade();
+}
+
+function buscarValores() {
+    const container = document.getElementById('valoresContainer');
+    container.innerHTML = '';
+    
+    const tiposComValores = tiposSelecionados.filter(t => typeof t === 'number');
+    const tiposNovos = tiposSelecionados.filter(t => typeof t === 'string' && t.startsWith('novo_'));
+    
+    if (tiposComValores.length === 0 && tiposNovos.length === 0) {
+        document.getElementById('secaoValores').style.display = 'none';
+        return;
+    }
+    
+    document.getElementById('secaoValores').style.display = 'block';
+    
+    // Buscar valores dos tipos existentes via API
+    tiposComValores.forEach(tipoId => {
+        fetch('/api/tipos-variacao/' + tipoId + '/valores/')
+            .then(r => r.json())
+            .then(data => {
+                renderizarValores(container, tipoId, data.tipo_nome, data.valores, false);
+                gerarGrade();
+            });
+    });
+    
+    // Tipos novos: campo para digitar valores
+    tiposNovos.forEach(tipoKey => {
+        const nomeTipo = tipoKey.replace('novo_', '');
+        renderizarValores(container, 'novo_' + nomeTipo, nomeTipo, [], true);
+    });
+}
+
+function renderizarValores(container, tipoId, tipoNome, valores, isNovo) {
+    const div = document.createElement('div');
+    div.className = 'mb-2';
+    div.id = 'valores_tipo_' + tipoId;
+    
+    let html = '<strong class="text-primary">' + tipoNome + ':</strong> ';
+    
+    if (isNovo) {
+        // Campo para digitar valores
+        html += '<div class="input-group input-group-sm mt-1">';
+        html += '<input type="text" class="form-control form-control-sm" id="inputValores_' + tipoId + '" ';
+        html += 'placeholder="Digite os valores separados por virgula" onkeydown="if(event.key===\'Enter\')adicionarValoresNovo(\'' + tipoId + '\')">';
+        html += '<button type="button" class="btn btn-outline-primary btn-sm" onclick="adicionarValoresNovo(\'' + tipoId + '\')"><i class="fas fa-plus"></i></button>';
+        html += '</div>';
+        html += '<div id="chipsValores_' + tipoId + '" class="mt-1"></div>';
+    } else {
+        // Checkboxes dos valores existentes
+        valores.forEach(v => {
+            html += '<div class="form-check form-check-inline">';
+            html += '<input class="form-check-input valor-check" type="checkbox" ';
+            html += 'value="' + v.id + '" data-tipo="' + tipoId + '" id="valor_' + v.id + '" onchange="gerarGrade()">';
+            html += '<label class="form-check-label" for="valor_' + v.id + '">' + v.valor + '</label>';
+            html += '</div>';
+        });
+        // Botao adicionar valor novo
+        html += '<div class="input-group input-group-sm mt-1" style="max-width:250px;">';
+        html += '<input type="text" class="form-control form-control-sm" id="inputValor_' + tipoId + '" placeholder="Novo valor...">';
+        html += '<button type="button" class="btn btn-outline-success btn-sm" onclick="adicionarValorExistente(' + tipoId + ')"><i class="fas fa-plus"></i></button>';
+        html += '</div>';
+    }
+    
+    div.innerHTML = html;
+    container.appendChild(div);
+}
+
+function adicionarValorExistente(tipoId) {
+    const input = document.getElementById('inputValor_' + tipoId);
+    const nome = input.value.trim();
+    if (!nome) return;
+    input.value = '';
+    
+    // Enviar via POST para criar
+    fetch('/api/valor-variacao/criar/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({tipo_id: tipoId, valor: nome})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.id) {
+            // Adicionar checkbox
+            const container = document.getElementById('valores_tipo_' + tipoId);
+            const label = container.querySelector('strong');
+            const newHtml = '<div class="form-check form-check-inline">' +
+                '<input class="form-check-input valor-check" type="checkbox" ' +
+                'value="' + data.id + '" data-tipo="' + tipoId + '" id="valor_' + data.id + '" onchange="gerarGrade()">' +
+                '<label class="form-check-label" for="valor_' + data.id + '">' + nome + '</label></div>';
+            label.insertAdjacentHTML('afterend', newHtml);
+            // Atualizar select de valores
+            const select = document.getElementById('valores_select_' + tipoId);
+            if (select) {
+                const opt = document.createElement('option');
+                opt.value = data.id;
+                opt.textContent = nome;
+                select.appendChild(opt);
+            }
+            gerarGrade();
+        }
+    });
+}
+
+function adicionarValoresNovo(tipoKey) {
+    const input = document.getElementById('inputValores_' + tipoKey);
+    const texto = input.value.trim();
+    if (!texto) return;
+    input.value = '';
+    
+    const valores = texto.split(',').map(v => v.trim()).filter(v => v);
+    if (!novosValores[tipoKey]) novosValores[tipoKey] = [];
+    novosValores[tipoKey] = novosValores[tipoKey].concat(valores);
+    
+    // Mostrar chips
+    const chipsContainer = document.getElementById('chipsValores_' + tipoKey);
+    chipsContainer.innerHTML = '';
+    novosValores[tipoKey].forEach(v => {
+        const chip = document.createElement('span');
+        chip.className = 'badge bg-info me-1 mb-1';
+        chip.innerHTML = v + ' <button type="button" class="btn-close btn-close-white ms-1" style="font-size:0.5em" onclick="removerNovoValor(\'' + tipoKey + '\', \'' + v + '\')"></button>';
+        chipsContainer.appendChild(chip);
+    });
+    
+    gerarGrade();
+}
+
+function removerNovoValor(tipoKey, valor) {
+    novosValores[tipoKey] = novosValores[tipoKey].filter(v => v !== valor);
+    adicionarValoresNovo(tipoKey); // re-render
+    // Se nao tem mais valores, limpar
+    if (novosValores[tipoKey].length === 0) {
+        delete novosValores[tipoKey];
+    }
+}
+
+function gerarGrade() {
+    const container = document.getElementById('gradeContainer');
+    const secaoGrade = document.getElementById('secaoGrade');
+    
+    // Coletar valores selecionados por tipo
+    const valoresPorTipoSelecionado = {};
+    
+    document.querySelectorAll('.valor-check:checked').forEach(cb => {
+        const tipoId = cb.dataset.tipo;
+        if (!valoresPorTipoSelecionado[tipoId]) valoresPorTipoSelecionado[tipoId] = [];
+        valoresPorTipoSelecionado[tipoId].push({
+            id: cb.value,
+            nome: cb.parentElement.querySelector('label').textContent
+        });
+    });
+    
+    // Adicionar valores novos
+    Object.keys(novosValores).forEach(tipoKey => {
+        if (!valoresPorTipoSelecionado[tipoKey]) valoresPorTipoSelecionado[tipoKey] = [];
+        novosValores[tipoKey].forEach(v => {
+            valoresPorTipoSelecionado[tipoKey].push({id: 'novo_' + v, nome: v});
+        });
+    });
+    
+    const tiposComValores = Object.keys(valoresPorTipoSelecionado);
+    if (tiposComValores.length === 0) {
+        secaoGrade.style.display = 'none';
+        return;
+    }
+    
+    secaoGrade.style.display = 'block';
+    
+    // Gerar combinacoes cartesianas
+    const listas = tiposComValores.map(tid => valoresPorTipoSelecionado[tid]);
+    const combinacoes = cartesianProduct(listas);
+    
+    let html = '<div class="table-responsive"><table class="table table-sm table-bordered mb-0">';
+    html += '<thead class="table-light"><tr>';
+    
+    // Cabecalho: nomes dos tipos
+    tiposComValores.forEach(tid => {
+        const tipoNome = valoresPorTipoSelecionado[tid][0]?.nome ? 
+            (valoresPorTipoSelecionado[tid][0].id.toString().startsWith('novo_') ? tid.replace('novo_', '') : 
+             document.querySelector('#valores_tipo_' + tid + ' strong')?.textContent || tid) : tid;
+        html += '<th>' + tipoNome + '</th>';
+    });
+    html += '<th class="text-center" style="width:100px;">Qtd</th></tr></thead><tbody>';
+    
+    combinacoes.forEach(combo => {
+        const chaves = combo.map(v => v.id).sort().join('-');
+        const nomes = combo.map(v => v.nome).join(' + ');
+        html += '<tr>';
+        combo.forEach(v => {
+            html += '<td>' + v.nome + '</td>';
+        });
+        html += '<td><input type="number" class="form-control form-control-sm text-center" ';
+        html += 'name="qtd_' + chaves + '" data-chave="' + chaves + '" value="0" min="0"></td>';
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table></div>';
+    html += '<small class="text-muted d-block mt-1">' + combinacoes.length + ' variacao(es) sera(o) criada(s)</small>';
+    
+    container.innerHTML = html;
+}
+
+function cartesianProduct(arrays) {
+    return arrays.reduce((acc, curr) => {
+        const result = [];
+        acc.forEach(a => curr.forEach(b => result.push([...a, b])));
+        return result;
+    }, [[]]);
+}
+
+// Pre-submissao: popular campos hidden
+document.getElementById('produtoForm').addEventListener('submit', function(e) {
+    // Tipos selecionados (apenas IDs existentes)
+    const tiposIds = [];
+    document.querySelectorAll('.tipo-check:checked').forEach(cb => {
+        tiposIds.push(parseInt(cb.value));
+    });
+    document.getElementById('id_tipos_variacao_ids').value = JSON.stringify(tiposIds);
+    
+    // Valores por tipo (apenas IDs existentes)
+    const valoresMap = {};
+    document.querySelectorAll('.valor-check:checked').forEach(cb => {
+        const tipoId = cb.dataset.tipo;
+        if (!valoresMap[tipoId]) valoresMap[tipoId] = [];
+        valoresMap[tipoId].push(parseInt(cb.value));
+    });
+    document.getElementById('id_valores_por_tipo').value = JSON.stringify(valoresMap);
+    
+    // Quantidades
+    const quantidades = {};
+    document.querySelectorAll('[data-chave]').forEach(input => {
+        quantidades[input.dataset.chave] = parseInt(input.value) || 0;
+    });
+    document.getElementById('id_quantidades_variacoes').value = JSON.stringify(quantidades);
+    
+    // Novos tipos
+    document.getElementById('id_novos_tipos').value = JSON.stringify(novosTipos);
+    
+    // Novos valores
+    document.getElementById('id_novos_valores').value = JSON.stringify(novosValores);
+});
+
+// Init
+document.addEventListener('DOMContentLoaded', function() {
+    toggleVariacao();
+    
+    {% if editar and produto.tem_variacao %}
+    document.getElementById('id_tem_variacao').checked = true;
+    toggleVariacao();
+    {% endif %}
+});
+</script>
 {% endblock %}

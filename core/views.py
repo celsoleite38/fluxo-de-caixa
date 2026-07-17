@@ -340,6 +340,69 @@ def relatorios(request):
                 'quantidade': total_sem_forma['quantidade'] or 0
             })
     
+    # Relatorio de Lucro: produtos vendidos no periodo com preco compra vs venda
+    itens_venda = ItemVenda.objects.filter(
+        nota__usuario=usuario_referencia,
+        nota__status='finalizada'
+    ).select_related('produto', 'variacao')
+    
+    if data_inicio:
+        itens_venda = itens_venda.filter(nota__data__gte=inicio_datetime)
+    if data_fim:
+        itens_venda = itens_venda.filter(nota__data__lte=fim_datetime)
+    
+    lucro_produtos = []
+    lucro_por_produto = {}
+    for item in itens_venda:
+        prod = item.produto
+        if prod.id not in lucro_por_produto:
+            lucro_por_produto[prod.id] = {
+                'produto': prod,
+                'qtd_vendida': 0,
+                'total_venda': 0,
+                'total_compra': 0,
+            }
+        entrada = lucro_por_produto[prod.id]
+        entrada['qtd_vendida'] += item.quantidade
+        entrada['total_venda'] += float(item.preco_unitario * item.quantidade)
+        # Custo: usa preco_compra da variacao se tiver, senao do produto
+        if item.variacao:
+            custo = float(item.variacao.preco_compra_efetivo * item.quantidade)
+        else:
+            custo = float(prod.preco_compra * item.quantidade)
+        entrada['total_compra'] += custo
+    
+    for prod_id, dados in lucro_por_produto.items():
+        dados['lucro'] = dados['total_venda'] - dados['total_compra']
+        if dados['total_compra'] > 0:
+            dados['margem'] = (dados['lucro'] / dados['total_compra']) * 100
+        else:
+            dados['margem'] = 0
+        lucro_produtos.append(dados)
+    
+    lucro_produtos.sort(key=lambda x: x['lucro'], reverse=True)
+    
+    total_custo = sum(d['total_compra'] for d in lucro_produtos)
+    total_receita = sum(d['total_venda'] for d in lucro_produtos)
+    total_lucro = total_receita - total_custo
+    margem_geral = (total_lucro / total_custo * 100) if total_custo > 0 else 0
+    ticket_medio_geral = float(total_vendas) / qtd_vendas if qtd_vendas > 0 else 0
+    
+    # Vendas por periodo (dia)
+    from django.db.models.functions import TruncDate
+    vendas_por_dia_raw = vendas.annotate(
+        data_venda=TruncDate('data')
+    ).values('data_venda').annotate(
+        total=Sum('total_com_desconto'),
+        quantidade=Count('id')
+    ).order_by('data_venda')
+    
+    vendas_por_dia = []
+    for dia in vendas_por_dia_raw:
+        d = dict(dia)
+        d['ticket_medio'] = float(d['total']) / d['quantidade'] if d['quantidade'] > 0 else 0
+        vendas_por_dia.append(d)
+    
     context = {
         'movimentacoes': movimentacoes.order_by('-data'),
         'entradas': entradas,
@@ -356,6 +419,13 @@ def relatorios(request):
         'forma_pagamento': forma_pagamento,
         'vendas_por_forma_pagamento': vendas_por_forma_list,
         'FORMAS_PAGAMENTO': NotaVenda.FORMA_PAGAMENTO_CHOICES,
+        'lucro_produtos': lucro_produtos,
+        'total_custo': total_custo,
+        'total_receita': total_receita,
+        'total_lucro': total_lucro,
+        'margem_geral': margem_geral,
+        'vendas_por_dia': vendas_por_dia,
+        'ticket_medio_geral': ticket_medio_geral,
     }
     return render(request, 'core/relatorios.html', context)
 
@@ -443,10 +513,162 @@ def lista_produtos(request):
         'valores_disponiveis': valores_disponiveis,
     })
 
+def _processar_variacoes(request, produto, usuario_referencia):
+    """Cria variacoes a partir dos dados do form unico de cadastro."""
+    import json
+    from itertools import product as itertools_product
+    from .models import MovimentoEstoque, TipoVariacao, ValorVariacao, ProdutoVariacao
+    
+    def _safe_json(raw, default):
+        try:
+            return json.loads(raw) if raw else default
+        except (json.JSONDecodeError, TypeError):
+            return default
+    
+    tipos_ids = _safe_json(request.POST.get('tipos_variacao_ids'), [])
+    valores_por_tipo = _safe_json(request.POST.get('valores_por_tipo'), {})
+    quantidades = _safe_json(request.POST.get('quantidades_variacoes'), {})
+    novos_tipos_nomes = _safe_json(request.POST.get('novos_tipos'), [])
+    novos_valores_map = _safe_json(request.POST.get('novos_valores'), {})
+    
+    # --- 1. Criar novos tipos ---
+    tipos_existentes = {
+        t.nome.lower(): t
+        for t in TipoVariacao.objects.filter(usuario=usuario_referencia)
+    }
+    for nome_tipo in novos_tipos_nomes:
+        nome_lower = nome_tipo.strip().lower()
+        if nome_lower not in tipos_existentes:
+            tipo = TipoVariacao.objects.create(
+                usuario=usuario_referencia,
+                nome=nome_tipo.strip(),
+                ordem=TipoVariacao.objects.filter(usuario=usuario_referencia).count() + 1,
+            )
+            tipos_existentes[nome_lower] = tipo
+    
+    # --- 2. Mapear IDs existentes -> objetos ---
+    tipos_map = {}
+    for tipo_id in tipos_ids:
+        try:
+            tipos_map[str(tipo_id)] = TipoVariacao.objects.get(
+                id=int(tipo_id), usuario=usuario_referencia
+            )
+        except (TipoVariacao.DoesNotExist, ValueError):
+            pass
+    
+    # --- 3. Criar novos valores ---
+    valores_existentes = set(
+        (v.tipo.id, v.valor.lower())
+        for v in ValorVariacao.objects.filter(tipo__usuario=usuario_referencia)
+    )
+    
+    for tipo_nome, valores_lista in novos_valores_map.items():
+        tipo_obj = None
+        for t in tipos_map.values():
+            if t.nome.lower() == tipo_nome.strip().lower():
+                tipo_obj = t
+                break
+        if tipo_obj is None:
+            tipo_obj = tipos_existentes.get(tipo_nome.strip().lower())
+        if tipo_obj:
+            for valor_nome in valores_lista:
+                valor_lower = valor_nome.strip().lower()
+                if (tipo_obj.id, valor_lower) not in valores_existentes:
+                    ValorVariacao.objects.create(
+                        tipo=tipo_obj,
+                        valor=valor_nome.strip(),
+                        ordem=ValorVariacao.objects.filter(tipo=tipo_obj).count() + 1,
+                    )
+                    valores_existentes.add((tipo_obj.id, valor_lower))
+    
+    # --- 4. Montar valores por tipo com chave original ---
+    # chave_original = str(id) para existentes, "novo_Nome" para novos
+    # Precisamos disso para casar com as chaves do JS na grade
+    
+    # Mapa: tipo_id -> [(chave_original, ValorVariacao_obj), ...]
+    valores_com_chave = {}
+    
+    # Valores existentes selecionados no form
+    for tipo_id_str, valor_ids in valores_por_tipo.items():
+        tipo_obj = tipos_map.get(tipo_id_str)
+        if not tipo_obj:
+            continue
+        lista = []
+        for vid in valor_ids:
+            try:
+                v = ValorVariacao.objects.get(id=int(vid), tipo=tipo_obj)
+                lista.append((str(v.id), v))
+            except (ValorVariacao.DoesNotExist, ValueError):
+                pass
+        valores_com_chave[tipo_obj.id] = lista
+    
+    # Valores novos (criados agora) - buscar no DB
+    for tipo_nome, valores_lista in novos_valores_map.items():
+        tipo_obj = None
+        for t in tipos_map.values():
+            if t.nome.lower() == tipo_nome.strip().lower():
+                tipo_obj = t
+                break
+        if tipo_obj is None:
+            tipo_obj = tipos_existentes.get(tipo_nome.strip().lower())
+        if not tipo_obj:
+            continue
+        if tipo_obj.id not in valores_com_chave:
+            valores_com_chave[tipo_obj.id] = []
+        existentes_chaves = {ch for ch, _ in valores_com_chave[tipo_obj.id]}
+        for valor_nome in valores_lista:
+            try:
+                v = ValorVariacao.objects.get(tipo=tipo_obj, valor__iexact=valor_nome.strip())
+                chave = f"novo_{v.valor}"
+                if chave not in existentes_chaves:
+                    valores_com_chave[tipo_obj.id].append((chave, v))
+                    existentes_chaves.add(chave)
+            except ValorVariacao.DoesNotExist:
+                pass
+    
+    # --- 5. Gerar combinacoes cartesianas ---
+    tipos_ordem = sorted(valores_com_chave.keys())
+    if not tipos_ordem:
+        return
+    
+    listas_chave_valor = [valores_com_chave[tid] for tid in tipos_ordem]
+    combinacoes = list(itertools_product(*listas_chave_valor))
+    
+    # --- 6. Criar ProdutoVariacao ---
+    for combinacao in combinacoes:
+        objs_valor = [v for _, v in combinacao]
+        
+        # Gerar SKU
+        partes_sku = [produto.sku_base or produto.nome[:10].upper().replace(' ', '')]
+        for v in objs_valor:
+            partes_sku.append(v.valor[:5].upper().replace(' ', ''))
+        sku = '-'.join(partes_sku)
+        sku_base_sku = sku
+        contador = 1
+        while ProdutoVariacao.objects.filter(sku=sku).exists():
+            sku = f"{sku_base_sku}-{contador}"
+            contador += 1
+        
+        # Chave para buscar quantidade (mesma chave do JS)
+        chaves = sorted([ch for ch, _ in combinacao])
+        chave_qtd = '-'.join(chaves)
+        qtd = int(quantidades.get(chave_qtd, 0))
+        
+        pv = ProdutoVariacao.objects.create(
+            produto=produto, sku=sku, quantidade=qtd, ativo=True,
+        )
+        pv.valores.set(objs_valor)
+        
+        if qtd > 0:
+            MovimentoEstoque.objects.create(
+                produto=produto, quantidade=qtd, tipo='cadastro', usuario=request.user,
+            )
+
 @login_required
 def adicionar_produto(request):
     from .utils import get_usuario_referencia
     from .models import MovimentoEstoque
+    import json
     
     usuario_referencia = get_usuario_referencia(request)
     
@@ -458,7 +680,10 @@ def adicionar_produto(request):
             produto.save()
             form.save_m2m()
             
-            if not produto.tem_variacao:
+            if produto.tem_variacao:
+                # Processar variacoes do form unico
+                _processar_variacoes(request, produto, usuario_referencia)
+            else:
                 MovimentoEstoque.objects.create(
                     produto=produto,
                     quantidade=produto.quantidade,
@@ -470,17 +695,18 @@ def adicionar_produto(request):
                 usuario=request.user,
                 acao='C',
                 modulo='Produtos / Estoque',
-                descricao=f"Cadastrou o produto '{produto.nome}' com quantidade inicial de {produto.quantidade}"
+                descricao=f"Cadastrou o produto '{produto.nome}' com quantidade inicial de {produto.quantidade_total}"
             )
             
             messages.success(request, 'Produto adicionado com sucesso!')
-            if produto.tem_variacao:
-                return redirect('produto_variacoes', produto_pk=produto.pk)
             return redirect('estoque')
     else:
         form = ProdutoForm(usuario=usuario_referencia)
     
-    return render(request, 'core/produto_form.html', {'form': form})
+    tipos = TipoVariacao.objects.filter(usuario=usuario_referencia)
+    return render(request, 'core/produto_form.html', {
+        'form': form, 'tipos_disponiveis': tipos
+    })
 
 @login_required
 @require_POST
@@ -528,8 +754,10 @@ def editar_produto(request, id):
     else:
         form = ProdutoForm(instance=produto, usuario=usuario_referencia)
     
+    tipos = TipoVariacao.objects.filter(usuario=usuario_referencia)
     return render(request, 'core/produto_form.html', {
-        'form': form, 'editar': True, 'produto': produto
+        'form': form, 'editar': True, 'produto': produto,
+        'tipos_disponiveis': tipos
     })
 
 @login_required
@@ -1371,6 +1599,93 @@ def produto_variacoes(request, produto_pk):
 
 
 @login_required
+def api_tipo_valores(request, pk):
+    """Retorna JSON com os valores de um tipo de variacao."""
+    usuario_referencia = get_usuario_referencia(request)
+    tipo = get_object_or_404(TipoVariacao, pk=pk, usuario=usuario_referencia)
+    valores = list(tipo.valores.values('id', 'valor'))
+    return JsonResponse({'tipo_nome': tipo.nome, 'valores': valores})
+
+
+@login_required
+def api_criar_valor(request):
+    """Cria um valor de variacao e retorna JSON."""
+    import json
+    if request.method != 'POST':
+        return JsonResponse({'erro': 'Metodo nao permitido'}, status=405)
+    
+    data = json.loads(request.body)
+    tipo_id = data.get('tipo_id')
+    valor_nome = data.get('valor', '').strip()
+    
+    if not tipo_id or not valor_nome:
+        return JsonResponse({'erro': 'Dados invalidos'}, status=400)
+    
+    usuario_referencia = get_usuario_referencia(request)
+    tipo = get_object_or_404(TipoVariacao, pk=tipo_id, usuario=usuario_referencia)
+    
+    valor, criado = ValorVariacao.objects.get_or_create(
+        tipo=tipo,
+        valor=valor_nome,
+        defaults={'ordem': ValorVariacao.objects.filter(tipo=tipo).count() + 1}
+    )
+    
+    return JsonResponse({'id': valor.id, 'valor': valor.valor, 'criado': criado})
+
+
+@login_required
+def adicionar_tipo_rapido(request, produto_pk):
+    usuario_referencia = get_usuario_referencia(request)
+    produto = get_object_or_404(Produto, pk=produto_pk, usuario=usuario_referencia)
+
+    if request.method == 'POST':
+        nome_tipo = request.POST.get('nome_tipo', '').strip()
+        nome_valor = request.POST.get('nome_valor', '').strip()
+
+        if not nome_tipo:
+            messages.error(request, 'Informe o nome do tipo de variação.')
+            return redirect('produto_variacoes', produto_pk=produto_pk)
+
+        tipo, criado_tipo = TipoVariacao.objects.get_or_create(
+            usuario=usuario_referencia,
+            nome=nome_tipo,
+        )
+
+        if criado_tipo:
+            produto.tipos_variacao.add(tipo)
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='C',
+                modulo='Produtos / Variações',
+                descricao=f"Criou tipo de variação '{nome_tipo}' e adicionou ao produto '{produto.nome}'"
+            )
+            messages.success(request, f'Tipo "{nome_tipo}" criado e adicionado ao produto!')
+        else:
+            if tipo not in produto.tipos_variacao.all():
+                produto.tipos_variacao.add(tipo)
+                messages.info(request, f'Tipo "{nome_tipo}" já existia e foi adicionado ao produto.')
+            else:
+                messages.info(request, f'Tipo "{nome_tipo}" já está vinculado ao produto.')
+
+        if nome_valor:
+            valor, criado_valor = ValorVariacao.objects.get_or_create(
+                tipo=tipo,
+                valor=nome_valor,
+                defaults={'usuario': usuario_referencia}
+            )
+            if criado_valor:
+                LogSistema.objects.create(
+                    usuario=request.user,
+                    acao='C',
+                    modulo='Produtos / Variações',
+                    descricao=f"Criou valor '{nome_valor}' para o tipo '{nome_tipo}'"
+                )
+                messages.success(request, f'Valor "{nome_valor}" criado no tipo "{nome_tipo}"!')
+
+    return redirect('produto_variacoes', produto_pk=produto_pk)
+
+
+@login_required
 def adicionar_valor_rapido(request, produto_pk, tipo_pk):
     usuario_referencia = get_usuario_referencia(request)
     produto = get_object_or_404(Produto, pk=produto_pk, usuario=usuario_referencia)
@@ -1482,23 +1797,15 @@ def gerar_grade(request, produto_pk):
         return redirect('produto_variacoes', produto_pk=produto_pk)
 
     listas_valores = []
-    tipos_sem_valores = []
 
     for tipo in tipos:
         ids_selecionados = request.POST.getlist(f'valores_tipo_{tipo.pk}')
         if not ids_selecionados:
-            messages.warning(request, f'Selecione ao menos um valor para o tipo "{tipo.nome}".')
-            return redirect('produto_variacoes', produto_pk=produto_pk)
+            continue
 
         valores = list(tipo.valores.filter(pk__in=ids_selecionados))
-        if not valores:
-            tipos_sem_valores.append(tipo.nome)
-            continue
-        listas_valores.append(valores)
-
-    if tipos_sem_valores:
-        messages.warning(request, f'Nenhum valor válido selecionado para: {", ".join(tipos_sem_valores)}.')
-        return redirect('produto_variacoes', produto_pk=produto_pk)
+        if valores:
+            listas_valores.append(valores)
 
     if not listas_valores:
         messages.error(request, 'Nenhum valor selecionado para gerar a grade.')

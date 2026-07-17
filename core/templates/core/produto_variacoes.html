@@ -22,9 +22,32 @@
                     <dd class="col-sm-9">
                         {% for tipo in tipos %}
                             <span class="badge bg-info me-1">{{ tipo.nome }}</span>
+                        {% empty %}
+                            <span class="text-muted">Nenhum tipo vinculado</span>
                         {% endfor %}
                     </dd>
                 </dl>
+
+                <!-- Adicionar novo tipo rapidamente -->
+                <hr>
+                <form method="post" action="{% url 'adicionar_tipo_rapido' produto.pk %}" class="row g-2 align-items-end">
+                    {% csrf_token %}
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Novo Tipo de Variação</label>
+                        <input type="text" class="form-control form-control-sm" name="nome_tipo"
+                               placeholder="Ex: Material, Tamanho, Sabor..." required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Primeiro Valor (opcional)</label>
+                        <input type="text" class="form-control form-control-sm" name="nome_valor"
+                               placeholder="Ex: Madeira, P, Chocolate...">
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-success btn-sm w-100">
+                            <i class="fas fa-plus me-1"></i>Adicionar Tipo
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -161,15 +184,18 @@
                             <small class="text-muted">Nenhum valor cadastrado para este tipo.</small>
                             {% endfor %}
                         </div>
-                        <form method="post" action="{% url 'adicionar_valor_rapido' produto.pk tipo.pk %}" 
-                              class="input-group input-group-sm mt-1">
-                            {% csrf_token %}
-                            <input type="text" class="form-control form-control-sm" name="valor"
-                                   placeholder="Novo valor (ex: Rosa)" required>
-                            <button type="submit" class="btn btn-outline-success btn-sm" title="Adicionar valor">
+                        <div class="input-group input-group-sm mt-1">
+                            <input type="text" class="form-control form-control-sm"
+                                   placeholder="Novo valor (ex: Rosa)"
+                                   id="inputValor_{{ tipo.pk }}">
+                            <button type="button" class="btn btn-outline-success btn-sm btn-adicionar-valor"
+                                    title="Adicionar valor"
+                                    data-tipo-pk="{{ tipo.pk }}"
+                                    data-url="{% url 'adicionar_valor_rapido' produto.pk tipo.pk %}"
+                                    data-csrf="{{ csrf_token }}">
                                 <i class="fas fa-plus"></i>
                             </button>
-                        </form>
+                        </div>
                     </div>
                     {% endfor %}
 
@@ -188,22 +214,22 @@
 
         <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const form = document.getElementById('formGerarGrade');
-            const checkboxes = form.querySelectorAll('.valor-checkbox');
-            const display = document.getElementById('qtdCombinacoes');
-            const btnGerar = document.getElementById('btnGerarGrade');
+            var form = document.getElementById('formGerarGrade');
+            var checkboxes = form.querySelectorAll('.valor-checkbox');
+            var display = document.getElementById('qtdCombinacoes');
+            var btnGerar = document.getElementById('btnGerarGrade');
 
             function calcularCombinacoes() {
-                const tiposGrupos = {};
+                var tiposGrupos = {};
                 checkboxes.forEach(function(cb) {
-                    const name = cb.name;
+                    var name = cb.name;
                     if (!tiposGrupos[name]) tiposGrupos[name] = 0;
                     if (cb.checked) tiposGrupos[name]++;
                 });
 
-                let total = 1;
-                let temTipo = false;
-                for (const key in tiposGrupos) {
+                var total = 1;
+                var temTipo = false;
+                for (var key in tiposGrupos) {
                     if (tiposGrupos[key] > 0) {
                         total *= tiposGrupos[key];
                         temTipo = true;
@@ -228,19 +254,41 @@
             document.querySelectorAll('.toggle-tipo').forEach(function(btn) {
                 btn.addEventListener('click', function(e) {
                     e.preventDefault();
-                    const tipoPk = this.getAttribute('data-tipo');
-                    const group = form.querySelectorAll('input[name="valores_tipo_' + tipoPk + '"]');
-                    const allChecked = Array.from(group).every(function(cb) { return cb.checked; });
+                    var tipoPk = this.getAttribute('data-tipo');
+                    var group = form.querySelectorAll('input[name="valores_tipo_' + tipoPk + '"]');
+                    var allChecked = Array.from(group).every(function(cb) { return cb.checked; });
                     group.forEach(function(cb) { cb.checked = !allChecked; });
                     this.textContent = allChecked ? 'Marcar todos' : 'Desmarcar todos';
                     calcularCombinacoes();
                 });
             });
 
+            document.querySelectorAll('.btn-adicionar-valor').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var tipoPk = this.getAttribute('data-tipo-pk');
+                    var url = this.getAttribute('data-url');
+                    var csrfToken = this.getAttribute('data-csrf');
+                    var inputId = this.getAttribute('data-input-id') || ('inputValor_' + tipoPk);
+                    var input = document.getElementById(inputId);
+                    var valorTexto = input.value.trim();
+                    if (!valorTexto) { input.focus(); return; }
+
+                    var formData = new FormData();
+                    formData.append('valor', valorTexto);
+                    formData.append('csrfmiddlewaretoken', csrfToken);
+
+                    var self = this;
+                    self.disabled = true;
+                    fetch(url, { method: 'POST', body: formData })
+                        .then(function() { window.location.reload(); })
+                        .catch(function() { self.disabled = false; });
+                });
+            });
+
             calcularCombinacoes();
 
             form.addEventListener('submit', function(e) {
-                const total = parseInt(display.textContent);
+                var total = parseInt(display.textContent);
                 if (total === 0) {
                     e.preventDefault();
                     alert('Selecione ao menos um valor de cada tipo para gerar a grade.');
@@ -253,84 +301,6 @@
         });
         </script>
         {% endif %}
-
-        <!-- Adicionar Variação Manual -->
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h6 class="mb-0"><i class="fas fa-plus me-2"></i>Adicionar Variação</h6>
-            </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="adicionar" value="1">
-
-                    <div class="mb-3">
-                        <label class="form-label">SKU</label>
-                        {{ form.sku }}
-                        {% if form.sku.errors %}
-                            <div class="text-danger">{{ form.sku.errors }}</div>
-                        {% endif %}
-                        <small class="text-muted">Ex: {{ produto.sku_base }}-38-VMD</small>
-                    </div>
-
-                    {% if tipos %}
-                    <div class="mb-3">
-                        <label class="form-label">Valores</label>
-                        <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
-                            {% for tipo in tipos %}
-                                <div class="mb-2">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <strong class="small text-muted">{{ tipo.nome }}:</strong>
-                                    </div>
-                                    {% for valor in tipo.valores.all %}
-                                        <div class="form-check ms-2">
-                                            <input class="form-check-input" type="checkbox"
-                                                   name="valores" value="{{ valor.pk }}"
-                                                   id="val_{{ valor.pk }}">
-                                            <label class="form-check-label small" for="val_{{ valor.pk }}">
-                                                {{ valor.valor }}
-                                            </label>
-                                        </div>
-                                    {% endfor %}
-                                    <form method="post" action="{% url 'adicionar_valor_rapido' produto.pk tipo.pk %}" 
-                                          class="input-group input-group-sm mt-1 ms-2">
-                                        {% csrf_token %}
-                                        <input type="text" class="form-control form-control-sm" name="valor"
-                                               placeholder="Novo valor..." required>
-                                        <button type="submit" class="btn btn-outline-success btn-sm" title="Adicionar">
-                                            <i class="fas fa-plus"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            {% endfor %}
-                        </div>
-                        {% if form.valores.errors %}
-                            <div class="text-danger">{{ form.valores.errors }}</div>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-
-                    <div class="mb-3">
-                        <label class="form-label">Preço (deixe vazio para usar o base)</label>
-                        {{ form.preco }}
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Quantidade</label>
-                        {{ form.quantidade }}
-                    </div>
-
-                    <div class="mb-3 form-check">
-                        {{ form.ativo }}
-                        <label class="form-check-label" for="id_ativo">Ativo</label>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-save me-2"></i>Adicionar Variação
-                    </button>
-                </form>
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}

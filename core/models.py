@@ -52,6 +52,7 @@ class Produto(models.Model):
     nome = models.CharField(max_length=100)
     descricao = models.TextField(blank=True, null=True)
     preco = models.DecimalField(max_digits=10, decimal_places=2)
+    preco_compra = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     quantidade = models.IntegerField(default=0, validators=[MinValueValidator(0)])
 
     tem_variacao = models.BooleanField(default=False)
@@ -72,6 +73,16 @@ class Produto(models.Model):
             return min(precos) if precos else self.preco
         return self.preco
 
+    @property
+    def lucro(self):
+        return self.preco - self.preco_compra
+
+    @property
+    def margem_lucro(self):
+        if self.preco_compra > 0:
+            return ((self.preco - self.preco_compra) / self.preco_compra) * 100
+        return 0
+
     def __str__(self):
         if self.tem_variacao:
             return f"{self.nome} (Grade)"
@@ -84,6 +95,7 @@ class ProdutoVariacao(models.Model):
     sku = models.CharField(max_length=50, unique=True)
     valores = models.ManyToManyField(ValorVariacao, related_name='produto_variacoes')
     preco = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    preco_compra = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     quantidade = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     ativo = models.BooleanField(default=True)
 
@@ -96,6 +108,20 @@ class ProdutoVariacao(models.Model):
     @property
     def preco_efetivo(self):
         return self.preco if self.preco is not None else self.produto.preco
+
+    @property
+    def preco_compra_efetivo(self):
+        return self.preco_compra if self.preco_compra else self.produto.preco_compra
+
+    @property
+    def lucro(self):
+        return self.preco_efetivo - self.preco_compra_efetivo
+
+    @property
+    def margem_lucro(self):
+        if self.preco_compra_efetivo > 0:
+            return ((self.preco_efetivo - self.preco_compra_efetivo) / self.preco_compra_efetivo) * 100
+        return 0
 
     @property
     def descricao_variacao(self):
