@@ -3,7 +3,8 @@ from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.contrib.auth.models import User
 from .models import (
     Movimentacao, Categoria, Produto, NotaVenda, ItemVenda, Perfil,
-    TipoVariacao, ValorVariacao, ProdutoVariacao, Orcamento, ItemOrcamento
+    TipoVariacao, ValorVariacao, ProdutoVariacao, Orcamento, ItemOrcamento,
+    MaquinaCartao
 )
 
 
@@ -141,13 +142,15 @@ class ItemVendaForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.usuario:
             produtos_com_estoque = Produto.objects.filter(usuario=self.usuario)
-            produtos_sem_variacao = produtos_com_estoque.filter(
-                tem_variacao=False, quantidade__gt=0
-            )
-            produtos_com_variacao = produtos_com_estoque.filter(
-                tem_variacao=True, variacoes__quantidade__gt=0, variacoes__ativo=True
+            from django.db.models import Q
+            produtos_disponiveis = produtos_com_estoque.filter(
+                Q(tem_variacao=False, quantidade__gt=0) |
+                Q(tem_variacao=True, variacoes__quantidade__gt=0, variacoes__ativo=True)
             ).distinct()
-            self.fields['produto'].queryset = produtos_sem_variacao | produtos_com_variacao
+            self.fields['produto'].queryset = produtos_disponiveis
+            self.fields['variacao'].queryset = ProdutoVariacao.objects.filter(
+                produto__usuario=self.usuario, ativo=True, quantidade__gt=0
+            )
 
     def clean(self):
         cleaned_data = super().clean()
@@ -273,6 +276,7 @@ class ProdutoVariacaoForm(forms.ModelForm):
 
 class EditarPerfilForm(forms.ModelForm):
     name = forms.CharField(label='Nome', max_length=150, required=False)
+    email = forms.EmailField(required=True)
 
     class Meta:
         model = Perfil
@@ -349,4 +353,99 @@ class ItemOrcamentoForm(forms.ModelForm):
                         f'Estoque insuficiente para {produto.nome}. '
                         f'Disponível: {produto.quantidade}'
                     )
+        return cleaned_data
+
+
+class MaquinaCartaoForm(forms.ModelForm):
+    parcelas_sem_juros_1 = forms.BooleanField(required=False, label='1x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_2 = forms.BooleanField(required=False, label='2x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_3 = forms.BooleanField(required=False, label='3x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_4 = forms.BooleanField(required=False, label='4x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_5 = forms.BooleanField(required=False, label='5x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_6 = forms.BooleanField(required=False, label='6x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_7 = forms.BooleanField(required=False, label='7x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_8 = forms.BooleanField(required=False, label='8x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_9 = forms.BooleanField(required=False, label='9x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_10 = forms.BooleanField(required=False, label='10x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_11 = forms.BooleanField(required=False, label='11x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+    parcelas_sem_juros_12 = forms.BooleanField(required=False, label='12x',
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input parcela-sj'}))
+
+    class Meta:
+        model = MaquinaCartao
+        fields = ['nome', 'parcelas_sem_juros',
+                  'taxa_1x', 'taxa_2x', 'taxa_3x', 'taxa_4x', 'taxa_5x', 'taxa_6x',
+                  'taxa_7x', 'taxa_8x', 'taxa_9x', 'taxa_10x', 'taxa_11x', 'taxa_12x',
+                  'taxa_debito', 'taxa_pix', 'ativo']
+        widgets = {
+            'nome': forms.TextInput(attrs={'class': 'form-control'}),
+            'parcelas_sem_juros': forms.HiddenInput(),
+            'taxa_1x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_2x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_3x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_4x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_5x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_6x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_7x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_8x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_9x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_10x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_11x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_12x': forms.NumberInput(attrs={'class': 'form-control taxa-parcela', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_debito': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'taxa_pix': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'max': '100'}),
+            'ativo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            sem_juros = self.instance.parcelas_sem_juros_list()
+            for i in range(1, 13):
+                self.fields[f'parcelas_sem_juros_{i}'].initial = i in sem_juros
+
+    def clean(self):
+        cleaned_data = super().clean()
+        sem_juros = []
+        for i in range(1, 13):
+            if cleaned_data.get(f'parcelas_sem_juros_{i}'):
+                sem_juros.append(str(i))
+        cleaned_data['parcelas_sem_juros'] = ','.join(sem_juros) if sem_juros else '1'
+        return cleaned_data
+
+
+class SolicitarResetSenhaForm(forms.Form):
+    email = forms.EmailField(
+        label='E-mail cadastrado',
+        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'seu@email.com.br'}),
+    )
+
+
+class ResetSenhaForm(forms.Form):
+    nova_senha = forms.CharField(
+        label='Nova Senha',
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+    )
+    confirmar_senha = forms.CharField(
+        label='Confirmar Nova Senha',
+        widget=forms.PasswordInput(attrs={'class': 'form-control'}),
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        s1 = cleaned_data.get('nova_senha')
+        s2 = cleaned_data.get('confirmar_senha')
+        if s1 and s2 and s1 != s2:
+            raise forms.ValidationError('As senhas não coincidem.')
         return cleaned_data

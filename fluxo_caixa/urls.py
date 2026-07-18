@@ -64,8 +64,24 @@ urlpatterns = [
     path('password_change/done/', auth_views.PasswordChangeDoneView.as_view(template_name='registration/password_change_done.html'), name='password_change_done'),
     path('accounts/register/', views.register, name='register'),
 
+    # Verificação de e-mail e ativação
+    path('contas/verificar-email/', views.verificar_email, name='verificar_email'),
+    path('contas/ativar/<str:uidb64>/<str:token>/', views.ativar_conta, name='ativar_conta'),
+    path('contas/reenviar-ativacao/', views.reenviar_ativacao, name='reenviar_ativacao'),
+
+    # Redefinição de senha
+    path('contas/solicitar-reset-senha/', views.solicitar_reset_senha, name='solicitar_reset_senha'),
+    path('contas/redefinir/<str:uidb64>/<str:token>/', views.reset_senha_confirmar, name='reset_senha_confirmar'),
+
     path('vendas/todas/', views.lista_todas_vendas, name='lista_todas_vendas'),
     path('vendas/imprimir-lista/', views.imprimir_lista_vendas, name='imprimir_lista_vendas'),
+
+    # Máquinas de Cartão
+    path('maquinas-cartao/', views.lista_maquinas_cartao, name='lista_maquinas_cartao'),
+    path('maquinas-cartao/adicionar/', views.adicionar_maquina_cartao, name='adicionar_maquina_cartao'),
+    path('maquinas-cartao/editar/<int:pk>/', views.editar_maquina_cartao, name='editar_maquina_cartao'),
+    path('maquinas-cartao/excluir/<int:pk>/', views.excluir_maquina_cartao, name='excluir_maquina_cartao'),
+    path('api/maquina-cartao/<int:pk>/taxa/', views.api_maquina_taxa, name='api_maquina_taxa'),
 
     # Orçamentos
     path('orcamentos/', views.lista_orcamentos, name='lista_orcamentos'),

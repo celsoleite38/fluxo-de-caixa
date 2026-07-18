@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0"><i class="fas fa-envelope me-2"></i>Verifique seu E-mail</h4>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <i class="fas fa-envelope-open-text fa-3x text-warning mb-3"></i>
+                    <h5>Enviamos um link de ativação</h5>
+                    {% if user.email %}
+                    <p class="text-muted">Verifique a caixa de entrada de <strong>{{ user.email }}</strong> e clique no link de ativação.</p>
+                    {% else %}
+                    <p class="text-muted">Você ainda não informou um e-mail. Informe abaixo para receber o link de ativação.</p>
+                    {% endif %}
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    {% if not user.email %}
+                    <div class="mb-3 text-start">
+                        <label class="form-label fw-bold">E-mail</label>
+                        <input type="email" name="email" class="form-control" placeholder="seu@email.com.br" required>
+                    </div>
+                    {% endif %}
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-paper-plane me-2"></i>{% if user.email %}Reenviar E-mail de Ativação{% else %}Enviar E-mail de Ativação{% endif %}
+                    </button>
+                </form>
+
+                <hr>
+                <a href="{% url 'login' %}" class="text-muted"><i class="fas fa-arrow-left me-1"></i>Voltar ao Login</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

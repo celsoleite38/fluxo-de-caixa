@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load humanize %}
+{% load humanize l10n %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -11,9 +11,8 @@
                     <span class="badge bg-light text-dark fs-6">Total: R$ {{ nota.total|intcomma }}</span>
                 </div>
             </div>
-            
+
             <div class="card-body">
-                <!-- Informações da Venda -->
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <strong>Cliente:</strong> {{ nota.cliente }}<br>
@@ -26,7 +25,6 @@
                     </div>
                 </div>
 
-                <!-- Itens da Venda -->
                 <div class="table-responsive mb-4">
                     <table class="table table-sm table-hover">
                         <thead class="table-light">
@@ -55,22 +53,19 @@
                     </table>
                 </div>
 
-                <!-- Formulário de Pagamento -->
                 <form method="post" id="form-pagamento">
                     {% csrf_token %}
-                    
+
                     <div class="row">
                         <div class="col-md-6">
-                            <!-- Desconto -->
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Desconto</label>
                                 <div class="input-group">
                                     <select class="form-select" id="tipo-desconto" style="max-width: 100px;">
                                         <option value="valor">R$</option>
                                         <option value="percentual">%</option>
-                                        
                                     </select>
-                                    <input type="number" class="form-control" id="valor-desconto" 
+                                    <input type="number" class="form-control" id="valor-desconto"
                                            step="0.01" min="0" placeholder="0.00">
                                     <button type="button" class="btn btn-outline-primary" id="btn-aplicar">
                                         Aplicar
@@ -78,10 +73,9 @@
                                 </div>
                             </div>
 
-                            <!-- Forma de Pagamento -->
                             <div class="mb-4">
                                 <label class="form-label fw-bold">Forma de Pagamento *</label>
-                                <select class="form-select" name="forma_pagamento" required>
+                                <select class="form-select" name="forma_pagamento" id="forma-pagamento" required>
                                     <option value="">Selecione a forma de pagamento...</option>
                                     <option value="dinheiro">Dinheiro</option>
                                     <option value="cartao_credito">Cartão de Crédito</option>
@@ -90,36 +84,117 @@
                                     <option value="transferencia">Transferência Bancária</option>
                                 </select>
                             </div>
+
+                            <div class="mb-3" id="campo-maquina" style="display: none;">
+                                <label class="form-label fw-bold">Máquina de Cartão</label>
+                                <select class="form-select" name="maquina_cartao" id="maquina-cartao">
+                                    <option value="">Nenhuma máquina (taxa manual)</option>
+                                    {% for maquina in maquinas %}
+                                    <option value="{{ maquina.pk }}"
+                                            data-taxa-debito="{{ maquina.taxa_debito|unlocalize }}"
+                                            data-taxa-pix="{{ maquina.taxa_pix|unlocalize }}"
+                                            data-parcelas-sj="{{ maquina.parcelas_sem_juros }}"
+                                            data-taxa-1x="{{ maquina.taxa_1x|unlocalize }}"
+                                            data-taxa-2x="{{ maquina.taxa_2x|unlocalize }}"
+                                            data-taxa-3x="{{ maquina.taxa_3x|unlocalize }}"
+                                            data-taxa-4x="{{ maquina.taxa_4x|unlocalize }}"
+                                            data-taxa-5x="{{ maquina.taxa_5x|unlocalize }}"
+                                            data-taxa-6x="{{ maquina.taxa_6x|unlocalize }}"
+                                            data-taxa-7x="{{ maquina.taxa_7x|unlocalize }}"
+                                            data-taxa-8x="{{ maquina.taxa_8x|unlocalize }}"
+                                            data-taxa-9x="{{ maquina.taxa_9x|unlocalize }}"
+                                            data-taxa-10x="{{ maquina.taxa_10x|unlocalize }}"
+                                            data-taxa-11x="{{ maquina.taxa_11x|unlocalize }}"
+                                            data-taxa-12x="{{ maquina.taxa_12x|unlocalize }}"
+                                            data-nome="{{ maquina.nome }}">
+                                        {{ maquina.nome }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div id="campos-cartao-credito" style="display: none;">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Operadora do Cartão</label>
+                                    <input type="text" class="form-control" name="operadora_cartao"
+                                           id="operadora-cartao" placeholder="Ex: Visa, Elo, Mastercard">
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Taxa da Operadora (%)</label>
+                                        <input type="text" class="form-control" id="taxa-operadora" readonly
+                                               style="background-color: #e9ecef; cursor: not-allowed;">
+                                        <input type="hidden" name="taxa_operadora" id="taxa-operadora-hidden" value="0">
+                                        <small class="text-muted" id="taxa-info-texto">Selecione a máquina</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">Parcelas</label>
+                                        <select class="form-select" name="parcelas" id="parcelas">
+                                            <option value="1">1x (à vista)</option>
+                                            <option value="2">2x</option>
+                                            <option value="3">3x</option>
+                                            <option value="4">4x</option>
+                                            <option value="5">5x</option>
+                                            <option value="6">6x</option>
+                                            <option value="7">7x</option>
+                                            <option value="8">8x</option>
+                                            <option value="9">9x</option>
+                                            <option value="10">10x</option>
+                                            <option value="11">11x</option>
+                                            <option value="12">12x</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="aplicar-taxa" name="aplicar_taxa" checked>
+                                        <label class="form-check-label fw-bold" for="aplicar-taxa">
+                                            Repassar taxa da operadora ao cliente
+                                        </label>
+                                        <small class="d-block text-muted">Desmarque para venda sem juros (valor real, sem repasse).</small>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="col-md-6">
-                            <!-- Resumo Financeiro -->
                             <div class="card border-0 bg-light">
                                 <div class="card-body">
                                     <h6 class="card-title">Resumo do Pagamento</h6>
-                                    
+
                                     <div class="d-flex justify-content-between mb-2">
                                         <span>Subtotal:</span>
                                         <strong>R$ {{ nota.total|intcomma }}</strong>
                                     </div>
-                                    
+
                                     <div class="d-flex justify-content-between mb-2 text-danger">
                                         <span>Desconto:</span>
                                         <strong id="desconto-display">R$ 0,00</strong>
                                     </div>
-                                    
+
+                                    <div class="d-flex justify-content-between mb-2 text-warning" id="acrescimo-linha" style="display: none;">
+                                        <span>Acréscimo (taxa operadora):</span>
+                                        <strong id="acrescimo-display">R$ 0,00</strong>
+                                    </div>
+
                                     <hr>
-                                    
+
                                     <div class="d-flex justify-content-between mb-3 fs-5 text-success">
                                         <span>Total a Pagar:</span>
-                                        <strong id="total-com-desconto">R$ {{ nota.total|intcomma }}</strong>
+                                        <strong id="total-final">R$ {{ nota.total|intcomma }}</strong>
+                                    </div>
+
+                                    <div id="info-parcelas" style="display: none;">
+                                        <hr>
+                                        <div class="text-center">
+                                            <small class="text-muted" id="parcelas-info"></small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Campos hidden para desconto -->
                     <input type="hidden" name="desconto_percentual" id="desconto-percentual" value="0">
                     <input type="hidden" name="desconto_valor" id="desconto-valor" value="0">
 
@@ -137,39 +212,159 @@
     </div>
 </div>
 
-<!-- JAVASCRIPT CORRIGIDO -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('=== PÁGINA CARREGADA ===');
-    
-    // Converter o total para número (corrigindo o erro de sintaxe)
-    const totalOriginal = parseFloat('{{ nota.total }}'.replace(',', '.'));
-    console.log('Total original convertido:', totalOriginal);
-    
+    const totalOriginal = parseFloat('{{ nota.total|unlocalize }}');
     let descontoAplicado = 0;
-    
-    // Elementos
+
     const btnAplicar = document.getElementById('btn-aplicar');
-    const formaPagamento = document.querySelector('select[name="forma_pagamento"]');
+    const formaPagamento = document.getElementById('forma-pagamento');
     const formPagamento = document.getElementById('form-pagamento');
-    
-    // Função para aplicar desconto
+    const camposCartaoCredito = document.getElementById('campos-cartao-credito');
+    const taxaOperadoraDisplay = document.getElementById('taxa-operadora');
+    const taxaOperadoraHidden = document.getElementById('taxa-operadora-hidden');
+    const parcelasSelect = document.getElementById('parcelas');
+    const acrescimoLinha = document.getElementById('acrescimo-linha');
+    const infoParcelas = document.getElementById('info-parcelas');
+    const campoMaquina = document.getElementById('campo-maquina');
+    const maquinaCartaoSelect = document.getElementById('maquina-cartao');
+    const aplicarTaxaCheck = document.getElementById('aplicar-taxa');
+    const taxaInfoTexto = document.getElementById('taxa-info-texto');
+
+    function formasComMaquina() {
+        return ['cartao_credito', 'cartao_debito', 'pix'];
+    }
+
+    function atualizarCamposMaquina() {
+        if (formasComMaquina().includes(formaPagamento.value)) {
+            campoMaquina.style.display = 'block';
+        } else {
+            campoMaquina.style.display = 'none';
+            maquinaCartaoSelect.value = '';
+        }
+    }
+
+    function obterTaxaMaquina() {
+        const selectedOption = maquinaCartaoSelect.options[maquinaCartaoSelect.selectedIndex];
+        if (!selectedOption || !selectedOption.value) {
+            return { taxa: 0, semJuros: true };
+        }
+
+        const forma = formaPagamento.value;
+        const numParcelas = parseInt(parcelasSelect.value) || 1;
+
+        if (forma === 'cartao_credito') {
+            const parcelasSJ = (selectedOption.getAttribute('data-parcelas-sj') || '').split(',').map(function(x) {
+                return parseInt(x.trim());
+            }).filter(function(x) { return !isNaN(x); });
+
+            const semJuros = parcelasSJ.indexOf(numParcelas) !== -1;
+
+            if (semJuros) {
+                return { taxa: 0, semJuros: true };
+            }
+
+            const attrName = 'data-taxa-' + numParcelas + 'x';
+            const taxa = parseFloat(selectedOption.getAttribute(attrName)) || 0;
+            return { taxa: taxa, semJuros: false };
+        } else if (forma === 'cartao_debito') {
+            return { taxa: parseFloat(selectedOption.getAttribute('data-taxa-debito')) || 0, semJuros: false };
+        } else if (forma === 'pix') {
+            return { taxa: parseFloat(selectedOption.getAttribute('data-taxa-pix')) || 0, semJuros: false };
+        }
+        return { taxa: 0, semJuros: true };
+    }
+
+    function calcularTotalFinal() {
+        const descontoPercentual = parseFloat(document.getElementById('desconto-percentual').value) || 0;
+        const descontoValor = parseFloat(document.getElementById('desconto-valor').value) || 0;
+
+        let desconto;
+        if (descontoPercentual > 0) {
+            desconto = (totalOriginal * descontoPercentual) / 100;
+        } else {
+            desconto = descontoValor;
+        }
+
+        const totalBase = totalOriginal - desconto;
+        const resultado = obterTaxaMaquina();
+        const taxa = resultado.taxa;
+        const semJuros = resultado.semJuros;
+        const numParcelas = parseInt(parcelasSelect.value) || 1;
+        const taxaAplicada = aplicarTaxaCheck.checked && taxa > 0 && formaPagamento.value === 'cartao_credito';
+
+        const acrescimo = taxaAplicada ? (totalBase * taxa) / 100 : 0;
+        const totalFinal = totalBase + acrescimo;
+
+        taxaOperadoraDisplay.value = taxa > 0 ? taxa.toFixed(2) + '%' : '0,00%';
+        taxaOperadoraHidden.value = taxa > 0 ? taxa : '0';
+
+        if (formaPagamento.value === 'cartao_credito' && maquinaCartaoSelect.value) {
+            if (semJuros) {
+                taxaInfoTexto.textContent = 'Parcela sem juros';
+            } else if (taxa > 0) {
+                taxaInfoTexto.textContent = 'Juros de ' + taxa.toFixed(2) + '% para ' + numParcelas + 'x';
+            } else {
+                taxaInfoTexto.textContent = 'Sem juros configurado';
+            }
+        } else {
+            taxaInfoTexto.textContent = 'Selecione a máquina';
+        }
+
+        document.getElementById('desconto-display').textContent = 'R$ ' + desconto.toFixed(2);
+
+        if (taxaAplicada) {
+            acrescimoLinha.style.display = 'flex';
+            document.getElementById('acrescimo-display').textContent = 'R$ ' + acrescimo.toFixed(2);
+        } else {
+            acrescimoLinha.style.display = 'none';
+        }
+
+        document.getElementById('total-final').textContent = 'R$ ' + totalFinal.toFixed(2);
+
+        if (formaPagamento.value === 'cartao_credito' && numParcelas > 1) {
+            const valorParcela = totalFinal / numParcelas;
+            infoParcelas.style.display = 'block';
+            const lixo = semJuros ? ' (s/ juros)' : ' (c/ juros)';
+            document.getElementById('parcelas-info').textContent =
+                numParcelas + 'x R$ ' + valorParcela.toFixed(2).replace('.', ',') + lixo;
+        } else if (formaPagamento.value === 'cartao_credito') {
+            infoParcelas.style.display = 'block';
+            document.getElementById('parcelas-info').textContent = '1x R$ ' + totalFinal.toFixed(2).replace('.', ',');
+        } else {
+            infoParcelas.style.display = 'none';
+        }
+    }
+
+    formaPagamento.addEventListener('change', function() {
+        if (this.value === 'cartao_credito') {
+            camposCartaoCredito.style.display = 'block';
+        } else {
+            camposCartaoCredito.style.display = 'none';
+            taxaOperadoraDisplay.value = '';
+            taxaOperadoraHidden.value = '0';
+            parcelasSelect.value = '1';
+            aplicarTaxaCheck.checked = true;
+        }
+        atualizarCamposMaquina();
+        calcularTotalFinal();
+    });
+
+    maquinaCartaoSelect.addEventListener('change', calcularTotalFinal);
+    aplicarTaxaCheck.addEventListener('change', calcularTotalFinal);
+    parcelasSelect.addEventListener('change', calcularTotalFinal);
+
     function aplicarDesconto() {
-        console.log('=== APLICANDO DESCONTO ===');
-        
         const tipo = document.getElementById('tipo-desconto').value;
         const valorInput = document.getElementById('valor-desconto');
         const valor = parseFloat(valorInput.value) || 0;
-        
-        console.log('Tipo:', tipo, 'Valor digitado:', valor);
-        
+
         if (valor <= 0) {
             alert('Digite um valor para desconto');
             valorInput.focus();
             return;
         }
 
-        // Calcular desconto
         let desconto;
         if (tipo === 'percentual') {
             if (valor > 100) {
@@ -180,20 +375,12 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             desconto = valor;
         }
-        
-        // Validar desconto
+
         if (desconto > totalOriginal) {
             alert('Desconto não pode ser maior que o total da venda (R$ ' + totalOriginal.toFixed(2) + ')');
             return;
         }
-        
-        const totalComDesconto = totalOriginal - desconto;
-        
-        // Atualizar a tela
-        document.getElementById('desconto-display').textContent = 'R$ ' + desconto.toFixed(2);
-        document.getElementById('total-com-desconto').textContent = 'R$ ' + totalComDesconto.toFixed(2);
-        
-        // Atualizar campos hidden
+
         if (tipo === 'percentual') {
             document.getElementById('desconto-percentual').value = valor;
             document.getElementById('desconto-valor').value = 0;
@@ -201,13 +388,11 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('desconto-percentual').value = 0;
             document.getElementById('desconto-valor').value = valor;
         }
-        
+
         descontoAplicado = desconto;
-        console.log('Desconto aplicado: R$', desconto);
-        console.log('Total com desconto: R$', totalComDesconto);
+        calcularTotalFinal();
     }
-    
-    // Função para validar formulário
+
     function validarFormulario(event) {
         if (!formaPagamento.value) {
             event.preventDefault();
@@ -217,26 +402,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return true;
     }
-    
-    // Event listeners
+
     btnAplicar.addEventListener('click', aplicarDesconto);
     formPagamento.addEventListener('submit', validarFormulario);
-    
-    // Enter no campo de desconto também aplica
+
     document.getElementById('valor-desconto').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
             aplicarDesconto();
         }
     });
-    
-    console.log('Event listeners configurados');
-    console.log('Total original: R$', totalOriginal);
-    
-    // Debug: verificar se os elementos existem
-    console.log('Botão aplicar:', btnAplicar);
-    console.log('Forma pagamento:', formaPagamento);
-    console.log('Formulário:', formPagamento);
 });
 </script>
 

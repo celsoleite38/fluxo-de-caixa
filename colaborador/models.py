@@ -62,6 +62,8 @@ class PermissaoColaborador(models.Model):
     MODULOS_CHOICES = [
         ('vendas', 'Vendas'),
         ('estoque', 'Estoque'),
+        ('variacao', 'Variações'),
+        ('maquina_cartao', 'Máquinas de Cartão'),
         ('financeiro', 'Financeiro'),
         ('clientes', 'Clientes'),
         ('relatorios', 'Relatórios'),

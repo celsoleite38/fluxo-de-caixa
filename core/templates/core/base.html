@@ -418,6 +418,34 @@
         .table tbody tr:hover {
             background-color: rgba(52, 152, 219, 0.05);
         }
+    
+        /* Estilos rápidos para profissionalizar sua sidebar sem quebrar o Bootstrap */
+        .sidebar-nav .nav-link {
+            color: #ced4da;
+            padding: 0.6rem 1rem;
+            display: flex;
+            align-items: center;
+            border-radius: 6px;
+            margin-bottom: 2px;
+            transition: all 0.2s ease;
+        }
+        .sidebar-nav .nav-link:hover:not([style*="not-allowed"]) {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+        .sidebar-nav .nav-link.active-link {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-weight: 600;
+        }
+        .sidebar-nav .submenu .nav-link {
+            font-size: 0.9em;
+            color: #adb5bd;
+        }
+        .sidebar-nav .disabled-link {
+            cursor: not-allowed; 
+            opacity: 0.4;
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
@@ -451,27 +479,38 @@
                             {{ request.user.get_full_name|default:request.user.username }}
                         </small>
                     </div>
-                    
-                    <ul class="nav flex-column mt-3">
+
+                    <ul class="nav flex-column mt-3 sidebar-nav">
+                        
+                        <!-- DASHBOARD -->
                         <li class="nav-item">
-                            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
-                               href="{% url 'dashboard' %}">
-                                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+                            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active-link{% endif %}" 
+                            href="{% url 'dashboard' %}">
+                                <i class="fas fa-tachometer-alt me-3 text-info"></i> Dashboard
                             </a>
                         </li>
                         
+                        <!-- MOVIMENTAÇÕES -->
                         <li class="nav-item">
-                            <a class="nav-link" href="#" data-bs-toggle="collapse" data-bs-target="#movimentacoesMenu">
-                                <i class="fas fa-exchange-alt me-2"></i> Movimentações
-                                <i class="fas fa-chevron-down float-end mt-1"></i>
+                            {% if is_colaborador and not perm_modulos.financeiro.ver %}
+                            <a class="nav-link disabled-link" title="Módulo restrito para seu usuário">
+                                <i class="fas fa-exchange-alt me-3"></i> Movimentações
+                                <i class="fas fa-lock ms-auto text-danger" style="font-size: 0.85em;"></i>
+                            </a>
+                            {% else %}
+                            <a class="nav-link d-flex justify-content-between align-items-center" href="#" data-bs-toggle="collapse" data-bs-target="#movimentacoesMenu">
+                                <span><i class="fas fa-exchange-alt me-3 text-secondary"></i> Movimentações</span>
+                                <i class="fas fa-chevron-down style-arrow" style="font-size: 0.8em;"></i>
                             </a>
                             <div class="collapse" id="movimentacoesMenu">
-                                <ul class="nav flex-column ms-3">
+                                <ul class="nav flex-column ms-4 submenu">
+                                    {% if not is_colaborador or perm_modulos.financeiro.editar %}
                                     <li class="nav-item">
                                         <a class="nav-link py-2" href="{% url 'adicionar_movimentacao' %}">
-                                            <i class="fas fa-plus me-2"></i> Adicionar
+                                            <i class="fas fa-plus me-2 text-muted"></i> Adicionar
                                         </a>
                                     </li>
+                                    {% endif %}
                                     <li class="nav-item">
                                         <a class="nav-link py-2" href="{% url 'lista_movimentacoes' 'E' %}">
                                             <i class="fas fa-arrow-up me-2 text-success"></i> Entradas
@@ -484,44 +523,90 @@
                                     </li>
                                 </ul>
                             </div>
+                            {% endif %}
                         </li>
                         
+                        <!-- RELATÓRIOS -->
                         <li class="nav-item">
-                            <a class="nav-link {% if request.resolver_match.url_name == 'relatorios' %}active{% endif %}" 
-                               href="{% url 'relatorios' %}">
-                                <i class="fas fa-chart-bar me-2"></i> Relatórios
+                            {% if is_colaborador and not perm_modulos.relatorios.ver %}
+                            <a class="nav-link disabled-link" title="Módulo restrito">
+                                <i class="fas fa-chart-bar me-3"></i> Relatórios
+                                <i class="fas fa-lock ms-auto text-danger" style="font-size: 0.85em;"></i>
                             </a>
+                            {% else %}
+                            <a class="nav-link {% if request.resolver_match.url_name == 'relatorios' %}active-link{% endif %}" href="{% url 'relatorios' %}">
+                                <i class="fas fa-chart-bar me-3 text-secondary"></i> Relatórios
+                            </a>
+                            {% endif %}
                         </li>
                         
+                        <!-- ESTOQUE -->
                         <li class="nav-item">
-                            <a class="nav-link {% if request.resolver_match.url_name == 'estoque' %}active{% endif %}" 
-                               href="{% url 'estoque' %}">
-                                <i class="fas fa-boxes me-2"></i> Estoque
+                            {% if is_colaborador and not perm_modulos.estoque.ver %}
+                            <a class="nav-link disabled-link" title="Módulo restrito">
+                                <i class="fas fa-boxes me-3"></i> Estoque
+                                <i class="fas fa-lock ms-auto text-danger" style="font-size: 0.85em;"></i>
+                            </a>
+                            {% else %}
+                            <a class="nav-link {% if request.resolver_match.url_name == 'estoque' %}active-link{% endif %}" href="{% url 'estoque' %}">
+                                <i class="fas fa-boxes me-3 text-secondary"></i> Estoque
+                            </a>
+                            {% endif %}
+                        </li>
+
+                        <!-- VARIAÇÕES -->
+                        <li class="nav-item">
+                            {% if is_colaborador and not perm_modulos.variacao.ver %}
+                            <a class="nav-link disabled-link" title="Módulo restrito">
+                                <i class="fas fa-tags me-3"></i> Variações
+                                <i class="fas fa-lock ms-auto text-danger" style="font-size: 0.85em;"></i>
+                            </a>
+                            {% else %}
+                            <a class="nav-link {% if 'variacao' in request.resolver_match.url_name %}active-link{% endif %}" href="{% url 'tipo_variacao_list' %}">
+                                <i class="fas fa-tags me-3 text-secondary"></i> Variações
+                            </a>
+                            {% endif %}
+                        </li>
+
+                        <!-- MÁQUINAS CARTÃO -->
+                        <li class="nav-item">
+                            {% if is_colaborador and not perm_modulos.maquina_cartao.ver %}
+                            <a class="nav-link disabled-link" title="Módulo restrito">
+                                <i class="fas fa-credit-card me-3"></i> Máquinas Cartão
+                                <i class="fas fa-lock ms-auto text-danger" style="font-size: 0.85em;"></i>
+                            </a>
+                            {% else %}
+                            <a class="nav-link {% if 'maquina_cartao' in request.resolver_match.url_name or request.resolver_match.url_name == 'lista_maquinas_cartao' %}active-link{% endif %}" 
+                            href="{% url 'lista_maquinas_cartao' %}">
+                                <i class="fas fa-credit-card me-3 text-secondary"></i> Máquinas Cartão
+                            </a>
+                            {% endif %}
+                        </li>
+
+                        <!-- DIVISOR VISUAL INTEGRADO -->
+                        <hr class="text-muted opacity-25 my-3">
+                        
+                        <!-- AÇÕES DE DESTAQUE (BOTÕES GRANDES) -->
+                        <li class="nav-item px-2">
+                            <a class="nav-link btn btn-warning text-dark fw-bold rounded-pill justify-content-center py-2 shadow-sm {% if 'orcamento' in request.resolver_match.url_name %}border border-dark{% endif %}"
+                            href="{% url 'lista_orcamentos' %}">
+                                <i class="fas fa-file-alt me-2"></i> ORÇAMENTOS
                             </a>
                         </li>
 
-                        <li class="nav-item">
-                            <a class="nav-link {% if 'variacao' in request.resolver_match.url_name %}active{% endif %}" 
-                               href="{% url 'tipo_variacao_list' %}">
-                                <i class="fas fa-tags me-2"></i> Variações
+                        <li class="nav-item px-2 mt-2">
+                            {% if is_colaborador and not perm_modulos.vendas.editar %}
+                            <a class="nav-link btn btn-secondary text-muted fw-bold rounded-pill justify-content-center py-2 disabled-link" 
+                            title="Sem permissão para realizar vendas">
+                                <i class="fas fa-lock me-2"></i> NOVA VENDA
                             </a>
-                        </li>
-
-                        <li class="nav-item">
-                            <a class="nav-link {% if 'orcamento' in request.resolver_match.url_name %}active{% endif %}"
-                               href="{% url 'lista_orcamentos' %}">
-                                <i class="fas fa-file-alt me-2"></i> Orçamentos
+                            {% else %}
+                            <a class="nav-link btn btn-success text-white fw-bold rounded-pill justify-content-center py-2 shadow-sm" 
+                            href="{% url 'criar_nota_venda' %}">
+                                <i class="fas fa-shopping-cart me-2"></i> NOVA VENDA
                             </a>
+                            {% endif %}
                         </li>
-                        
-                        <li class="nav-item mt-3">
-                            <a class="nav-link btn btn-primary text-white fw-bold rounded-pill px-3" 
-                               href="{% url 'criar_nota_venda' %}">
-                                <i class="fas fa-file-invoice me-2"></i> 
-                                NOVA VENDA
-                            </a>
-                        </li>
-                        
                         
                     </ul>
                 </div>
@@ -573,7 +658,7 @@
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <form method="post" action="{% url 'login' %}" style="display: inline;">
+                                        <form method="post" action="{% url 'logout' %}" style="display: inline;">
                                             {% csrf_token %}
                                             <button type="submit" class="dropdown-item text-danger">
                                                 <i class="fas fa-sign-out-alt me-2"></i>Sair

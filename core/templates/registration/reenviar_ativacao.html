@@ -1,0 +1,28 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0"><i class="fas fa-paper-plane me-2"></i>Reenviar Ativação</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Informe o e-mail usado no cadastro para receber um novo link de ativação.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">E-mail</label>
+                        <input type="email" name="email" class="form-control" placeholder="seu@email.com.br" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-paper-plane me-2"></i>Reenviar Link
+                    </button>
+                </form>
+                <hr>
+                <a href="{% url 'login' %}" class="text-muted"><i class="fas fa-arrow-left me-1"></i>Voltar ao Login</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

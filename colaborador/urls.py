@@ -12,10 +12,6 @@ urlpatterns = [
     path('solicitacoes/', views.user_requests, name='user_requests'),
     path('aprovar/<int:request_id>/', views.approve_request, name='approve_request'),
     
-    path('vendas/', views.vendas, name='vendas'),
-    path('estoque/', views.estoque, name='estoque'),
-    #path('financeiro/', views.financeiro, name='financeiro'),
-    #path('relatorios/', views.relatorios, name='relatorios'),
     path('permissoes/', views.gerenciar_permissoes, name='gerenciar_permissoes'),
     path('permissoes/colaborador/<int:colaborador_id>/', views.gerenciar_permissoes, name='gerenciar_permissoes_colaborador'),
 ]

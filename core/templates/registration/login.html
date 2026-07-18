@@ -311,6 +311,48 @@
                 font-size: 1.25rem;
             }
         }
+        
+        /* Ajuste fino para alinhar os ícones perfeitamente dentro do Form Floating */
+        .floating-with-icon {
+            position: relative;
+        }
+        .floating-with-icon i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+            color: #6c757d;
+            pointer-events: none;
+        }
+        /* Empurra o texto e o label para não ficarem em cima do ícone */
+        .floating-with-icon .form-control {
+            padding-left: 45px !important;
+        }
+        .floating-with-icon label {
+            padding-left: 45px !important;
+        }
+    
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0);
+            animation: ripple-animation 0.6s linear;
+            pointer-events: none;
+        }
+        
+        @keyframes ripple-animation {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+        
+        .input-group.focused .input-group-text {
+            border-color: var(--accent-color);
+            background-color: rgba(76, 70, 131, 0.1);
+        }
     </style>
 </head>
 
@@ -353,24 +395,16 @@
                     {% endfor %}
                 {% endif %}
                 
-                <div class="input-group mb-3">
-                    <span class="input-group-text">
-                        <i class="fas fa-user"></i>
-                    </span>
-                    <div class="form-floating">
-                        <input type="text" name="username" class="form-control" id="id_username" placeholder="Usuário" required>
-                        <label for="id_username">Usuário</label>
-                    </div>
+                <div class="form-floating mb-3 floating-with-icon">
+                    <i class="fas fa-user"></i>
+                    <input type="text" name="username" class="form-control" id="id_username" placeholder="Usuário" required>
+                    <label for="id_username">Usuário</label>
                 </div>
-                
-                <div class="input-group mb-4">
-                    <span class="input-group-text">
-                        <i class="fas fa-lock"></i>
-                    </span>
-                    <div class="form-floating">
-                        <input type="password" name="password" class="form-control" id="id_password" placeholder="Senha" required>
-                        <label for="id_password">Senha</label>
-                    </div>
+
+                <div class="form-floating mb-4 floating-with-icon">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" name="password" class="form-control" id="id_password" placeholder="Senha" required>
+                    <label for="id_password">Senha</label>
                 </div>
                 
                 <button type="submit" class="btn btn-login">
@@ -379,9 +413,14 @@
                 </button>
                 
                 <div class="login-links">
-                    <a href="{% url 'password_change' %}">
+                    <a href="{% url 'solicitar_reset_senha' %}">
                         <i class="fas fa-key me-1"></i>
                         Esqueceu a senha?
+                    </a>
+                    <span class="mx-2">•</span>
+                    <a href="{% url 'reenviar_ativacao' %}">
+                        <i class="fas fa-envelope me-1"></i>
+                        Reenviar ativação
                     </a>
                     <span class="mx-2">•</span>
                     <a href="{% url 'register' %}">
@@ -393,10 +432,8 @@
         </div>
     </div>
 
-    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Script customizado -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Adicionar efeito de foco nos inputs
@@ -437,27 +474,6 @@
         });
     </script>
     
-    <style>
-        .ripple {
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
-            transform: scale(0);
-            animation: ripple-animation 0.6s linear;
-            pointer-events: none;
-        }
-        
-        @keyframes ripple-animation {
-            to {
-                transform: scale(4);
-                opacity: 0;
-            }
-        }
-        
-        .input-group.focused .input-group-text {
-            border-color: var(--accent-color);
-            background-color: rgba(76, 70, 131, 0.1);
-        }
-    </style>
+    
 </body>
 </html>

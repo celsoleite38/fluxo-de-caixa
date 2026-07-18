@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser, User
 from django.core.validators import MinValueValidator
@@ -164,6 +166,55 @@ class Movimentacao(models.Model):
         return f"{self.descricao} ({self.get_tipo_display()}) - R${self.valor}"
 
 
+class MaquinaCartao(models.Model):
+    nome = models.CharField(max_length=100)
+    parcelas_sem_juros = models.CharField(max_length=50, default='1',
+        help_text='Parcelas isentas de juros, separadas por vírgula. Ex: 1,2,3')
+    taxa_1x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 1x (%)')
+    taxa_2x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 2x (%)')
+    taxa_3x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 3x (%)')
+    taxa_4x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 4x (%)')
+    taxa_5x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 5x (%)')
+    taxa_6x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 6x (%)')
+    taxa_7x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 7x (%)')
+    taxa_8x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 8x (%)')
+    taxa_9x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 9x (%)')
+    taxa_10x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 10x (%)')
+    taxa_11x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 11x (%)')
+    taxa_12x = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa 12x (%)')
+    taxa_debito = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa Débito (%)')
+    taxa_pix = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Taxa PIX (%)')
+    ativo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Máquina de Cartão'
+        verbose_name_plural = 'Máquinas de Cartão'
+
+    def __str__(self):
+        return self.nome
+
+    def parcelas_sem_juros_list(self):
+        return [int(x.strip()) for x in self.parcelas_sem_juros.split(',') if x.strip().isdigit()]
+
+    def is_parcela_sem_juros(self, parcela):
+        return parcela in self.parcelas_sem_juros_list()
+
+    def get_taxa_credito_parcela(self, parcela):
+        if self.is_parcela_sem_juros(parcela):
+            return Decimal(0)
+        taxa = getattr(self, f'taxa_{parcela}x', None)
+        return taxa if taxa is not None else Decimal(0)
+
+    def get_taxa_por_forma(self, forma_pagamento, parcela=1):
+        if forma_pagamento == 'cartao_credito':
+            return self.get_taxa_credito_parcela(parcela)
+        elif forma_pagamento == 'cartao_debito':
+            return self.taxa_debito
+        elif forma_pagamento == 'pix':
+            return self.taxa_pix
+        return Decimal(0)
+
+
 class NotaVenda(models.Model):
     FORMA_PAGAMENTO_CHOICES = [
         ('dinheiro', 'Dinheiro'),
@@ -184,11 +235,17 @@ class NotaVenda(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     desconto = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_com_desconto = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    acrescimo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_com_acrescimo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    taxa_operadora = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    parcelas = models.IntegerField(default=1)
+    operadora_cartao = models.CharField(max_length=50, blank=True, default='')
     forma_pagamento = models.CharField(max_length=20, choices=FORMA_PAGAMENTO_CHOICES, blank=False, null=False)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='aberta')
     data = models.DateTimeField(auto_now_add=True)
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notas_venda')
     usuario_executante = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='notas_executadas')
+    maquina_cartao = models.ForeignKey(MaquinaCartao, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):
         return f"Venda #{self.id} - {self.cliente}"
@@ -352,6 +409,7 @@ class Perfil(models.Model):
     telefone = models.CharField(max_length=20, blank=True, null=True)
     celular = models.CharField(max_length=20, blank=True, null=True)
     logotipo = models.ImageField(upload_to='logos/', blank=True, null=True)
+    email_verificado = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.Nome} - Perfil"
@@ -387,3 +445,44 @@ class ConfigEstoqueBaixo(models.Model):
 
     def __str__(self):
         return f"{self.nome_empresa or self.usuario.username} - Estoque Baixo"
+
+
+class TokenVerificacao(models.Model):
+    TIPO_CHOICES = [
+        ('ativacao', 'Ativação de Conta'),
+        ('reset_senha', 'Redefinição de Senha'),
+    ]
+
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tokens_verificacao')
+    token = models.CharField(max_length=64, unique=True)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    expira_em = models.DateTimeField()
+    usado = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = 'Token de Verificação'
+        verbose_name_plural = 'Tokens de Verificação'
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} - {self.usuario.username}"
+
+    def esta_valido(self):
+        from django.utils import timezone
+        return not self.usado and timezone.now() <= self.expira_em
+
+    @classmethod
+    def gerar_token(cls, usuario, tipo, horas_validade=24):
+        import secrets
+        from django.utils import timezone
+        from datetime import timedelta
+
+        cls.objects.filter(usuario=usuario, tipo=tipo, usado=False).delete()
+
+        token = secrets.token_urlsafe(48)
+        return cls.objects.create(
+            usuario=usuario,
+            token=token,
+            tipo=tipo,
+            expira_em=timezone.now() + timedelta(hours=horas_validade),
+        )

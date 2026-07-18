@@ -15,19 +15,19 @@ SECRET_KEY = 'django-insecure-94gwo_p8l22%2=%bl$+6uhq&_hlcx(*b407rw@_a#-$hbbgs-i
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['fluxo.innosoft.com.br','localhost','127.0.0.1','innosoft.com.br' ]
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    'core',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'core',
     'django.contrib.humanize',
     'colaborador',
     'logs',
@@ -39,6 +39,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.VerificacaoEmailMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'colaborador.middleware.BloqueioColaboradorMiddleware',
@@ -59,6 +60,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.perfil_context',
+                'core.context_processors.permissoes_colaborador_context',
                 #'autenticacao.context_processors.perfil_profissional',
                 #'notificacoes.context_processors.avisos_nao_lidos',
             ],
@@ -134,3 +136,12 @@ LOGIN_REDIRECT_URL = 'dashboard'
 LOGIN_URL = 'login'
 
 sys.path.insert(0, '/path/to/fluxo_caixa')
+
+# Email (Gmail SMTP)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'suporteinnosoft@gmail.com'
+EMAIL_HOST_PASSWORD = 'kvqe pqqf ybpo ouxz'
+DEFAULT_FROM_EMAIL = f'Sistema Fluxo Innosoft <{EMAIL_HOST_USER}>'

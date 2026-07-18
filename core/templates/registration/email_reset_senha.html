@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px;">
+  <div style="max-width: 500px; margin: auto; background: #fff; border-radius: 8px; padding: 30px; border: 1px solid #ddd;">
+    <h2 style="color: #e65100; text-align: center;">Redefina sua Senha</h2>
+    <p>Olá <strong>{{ user.first_name|default:user.username }}</strong>,</p>
+    <p>Recebemos uma solicitação para redefinir sua senha. Clique no botão abaixo para criar uma nova senha:</p>
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{{ link }}" style="background: #e65100; color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+        Redefinir Senha
+      </a>
+    </div>
+    <p style="color: #666; font-size: 13px;">Se o botão não funcionar, copie e cole este link no navegador:</p>
+    <p style="color: #e65100; font-size: 12px; word-break: break-all;">{{ link }}</p>
+    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+    <p style="color: #999; font-size: 12px;">Este link expira em 24 horas. Se você não solicitou a redefinição, ignore este e-mail.</p>
+  </div>
+</body>
+</html>

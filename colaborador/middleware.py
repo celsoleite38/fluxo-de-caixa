@@ -15,8 +15,7 @@ class BloqueioColaboradorMiddleware:
         ]
         
         if request.user.is_authenticated:
-            # Verifica se é colaborador
-            if hasattr(request.user, 'colaborador'):
+            if hasattr(request.user, 'pertence_a'):
                 resolved = resolve(request.path_info)
                 if resolved.url_name in urls_proibidas:
                     messages.error(request, "Acesso restrito ao usuário principal.")

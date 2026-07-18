@@ -1,0 +1,92 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h4><i class="fas fa-credit-card me-2"></i>Máquinas de Cartão</h4>
+        <a href="{% url 'adicionar_maquina_cartao' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Nova Máquina
+        </a>
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3">
+            Cadastre suas máquinas de cartão com as taxas de cada operadora. As taxas serão aplicadas automaticamente na hora da venda conforme o número de parcelas.
+        </p>
+
+        {% if maquinas %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nome</th>
+                        <th class="text-center">Crédito s/ Juros</th>
+                        <th class="text-center">Taxa Débito</th>
+                        <th class="text-center">Taxa PIX</th>
+                        <th class="text-center">Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for maquina in maquinas %}
+                    <tr>
+                        <td><strong>{{ maquina.nome }}</strong></td>
+                        <td class="text-center">
+                            {% with sj=maquina.parcelas_sem_juros_list %}
+                            {% if sj %}
+                                {% for p in sj %}{% if not forloop.first %}, {% endif %}{{ p }}x{% endfor %}
+                            {% else %}
+                                <span class="text-muted">Nenhuma</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="text-center">
+                            {% if maquina.taxa_debito > 0 %}
+                                <span class="badge bg-warning text-dark">{{ maquina.taxa_debito }}%</span>
+                            {% else %}
+                                <span class="badge bg-success">Grátis</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if maquina.taxa_pix > 0 %}
+                                <span class="badge bg-warning text-dark">{{ maquina.taxa_pix }}%</span>
+                            {% else %}
+                                <span class="badge bg-success">Grátis</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if maquina.ativo %}
+                                <span class="badge bg-success">Ativa</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inativa</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'editar_maquina_cartao' maquina.pk %}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <form method="post" action="{% url 'excluir_maquina_cartao' maquina.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger"
+                                        onclick="return confirm('Tem certeza que deseja excluir esta máquina?')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            Nenhuma máquina de cartão cadastrada. Cadastre uma para começar a usar nas vendas.
+        </div>
+        {% endif %}
+
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+{% endblock %}

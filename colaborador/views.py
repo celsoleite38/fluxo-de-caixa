@@ -157,22 +157,6 @@ def approve_request(request, request_id):
     
     return render(request, 'colaborador/admin/approve_request.html', {'user_request': user_request})
 
-from colaborador.decorators import colaborador_tem_permissao
-
-@login_required
-@colaborador_tem_permissao('vendas', 'ver')
-def vendas(request):
-    # Lógica de vendas - colaboradores podem acessar se tiverem permissão
-    vendas = Venda.objects.filter(empresa=request.user.colaborador.empresa)
-    return render(request, 'core/vendas.html', {'vendas': vendas})
-
-@login_required
-@colaborador_tem_permissao('estoque', 'ver')
-def estoque(request):
-    # Lógica de estoque - colaboradores podem acessar se tiverem permissão
-    estoque = Produto.objects.filter(empresa=request.user.colaborador.empresa)
-    return render(request, 'core/estoque.html', {'estoque': estoque})
-
 @login_required
 @usuario_principal_required
 def gerenciar_permissoes(request, colaborador_id=None):

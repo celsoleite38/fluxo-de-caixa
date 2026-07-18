@@ -2,24 +2,32 @@
 from django.db.models.aggregates import Count
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import login, logout, update_session_auth_hash
+from django.contrib.auth import login, logout, update_session_auth_hash, authenticate
+from django.contrib.auth.models import User
 from django.contrib import messages
 from django.db.models import Sum
 from django.db.models import Q
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.utils import timezone as tz
 from datetime import datetime, timedelta, timezone, date, time
 from itertools import product as itertools_product
 
 from core.utils import get_usuario_referencia
+from colaborador.decorators import colaborador_tem_permissao
 from .forms import (
     CategoriaForm, EditarPerfilForm, EntradaEstoqueForm, UsuarioForm,
     CustomPasswordChangeForm, MovimentacaoForm, ProdutoForm, NotaVendaForm,
     ItemVendaForm, TipoVariacaoForm, ValorVariacaoForm, ProdutoVariacaoForm,
-    CorrecaoEstoqueForm, OrcamentoForm, ItemOrcamentoForm
+    CorrecaoEstoqueForm, OrcamentoForm, ItemOrcamentoForm, MaquinaCartaoForm,
+    SolicitarResetSenhaForm, ResetSenhaForm,
 )
 from .models import (
     ItemVenda, Movimentacao, Categoria, Produto, NotaVenda, MovimentoEstoque,
     TipoVariacao, ValorVariacao, ProdutoVariacao, Orcamento, ItemOrcamento,
-    ConfigEstoqueBaixo
+    ConfigEstoqueBaixo, MaquinaCartao, TokenVerificacao, Perfil,
 )
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -182,6 +190,7 @@ def dashboard(request):
     return render(request, 'core/dashboard.html', context)
 
 @login_required
+@colaborador_tem_permissao('financeiro', 'ver')
 def lista_movimentacoes(request, tipo):
     from .utils import get_usuario_referencia
     usuario_referencia = get_usuario_referencia(request)
@@ -201,6 +210,7 @@ def lista_movimentacoes(request, tipo):
     return render(request, 'core/entrada_list.html' if tipo == 'E' else 'core/saida_list.html', context)
 
 @login_required
+@colaborador_tem_permissao('financeiro', 'editar')
 def adicionar_movimentacao(request):
     from .utils import get_usuario_referencia
     usuario_referencia = get_usuario_referencia(request)
@@ -226,6 +236,7 @@ def adicionar_movimentacao(request):
     return render(request, 'core/movimentacao_form.html', {'form': form})
 
 @login_required
+@colaborador_tem_permissao('financeiro', 'editar')
 def editar_movimentacao(request, pk):
     usuario_referencia = get_usuario_referencia(request)
     movimentacao = get_object_or_404(Movimentacao, pk=pk, usuario=usuario_referencia)
@@ -249,6 +260,7 @@ def editar_movimentacao(request, pk):
     return render(request, 'core/movimentacao_form.html', {'form': form})
 
 @login_required
+@colaborador_tem_permissao('financeiro', 'excluir')
 def excluir_movimentacao(request, pk):
     usuario_referencia = get_usuario_referencia(request)
     movimentacao = get_object_or_404(Movimentacao, pk=pk, usuario=usuario_referencia)
@@ -270,6 +282,7 @@ def excluir_movimentacao(request, pk):
 
 
 @login_required
+@colaborador_tem_permissao('relatorios', 'ver')
 def relatorios(request):
     from .utils import get_usuario_referencia
     
@@ -452,6 +465,7 @@ def imprimir_saidas(request):
 
 
 @login_required
+@colaborador_tem_permissao('estoque', 'ver')
 def lista_produtos(request):
     from .utils import get_usuario_referencia
     from django.db.models import Q, Sum, Count
@@ -665,6 +679,7 @@ def _processar_variacoes(request, produto, usuario_referencia):
             )
 
 @login_required
+@colaborador_tem_permissao('estoque', 'editar')
 def adicionar_produto(request):
     from .utils import get_usuario_referencia
     from .models import MovimentoEstoque
@@ -709,6 +724,7 @@ def adicionar_produto(request):
     })
 
 @login_required
+@colaborador_tem_permissao('estoque', 'excluir')
 @require_POST
 def excluir_produto(request, id):
     usuario_referencia = get_usuario_referencia(request)
@@ -733,6 +749,7 @@ def excluir_produto(request, id):
 
 
 @login_required
+@colaborador_tem_permissao('estoque', 'editar')
 def editar_produto(request, id):
     usuario_referencia = get_usuario_referencia(request)
     produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
@@ -761,6 +778,7 @@ def editar_produto(request, id):
     })
 
 @login_required
+@colaborador_tem_permissao('estoque', 'editar')
 def entrada_estoque(request, id):
     from .utils import get_usuario_referencia
     usuario_referencia = get_usuario_referencia(request)
@@ -831,6 +849,7 @@ def historico_estoque(request):
 
 
 @login_required
+@colaborador_tem_permissao('vendas', 'editar')
 def criar_nota_venda(request):
     from .utils import get_usuario_referencia
     
@@ -862,6 +881,7 @@ def criar_nota_venda(request):
     return render(request, 'core/nota_venda_form.html', {'form': form})
 
 @login_required
+@colaborador_tem_permissao('vendas', 'editar')
 def adicionar_item_venda(request, nota_id):
     from .utils import get_usuario_referencia
     
@@ -932,6 +952,7 @@ def adicionar_item_venda(request, nota_id):
     })
 
 @login_required
+@colaborador_tem_permissao('vendas', 'editar')
 def finalizar_venda(request, nota_id):
     from .utils import get_usuario_referencia
     usuario_referencia = get_usuario_referencia(request)
@@ -956,20 +977,31 @@ def finalizar_venda(request, nota_id):
         forma_pagamento = request.POST.get('forma_pagamento')
         desconto_percentual = request.POST.get('desconto_percentual', '0')
         desconto_valor = request.POST.get('desconto_valor', '0')
+        parcelas = request.POST.get('parcelas', '1')
+        operadora_cartao = request.POST.get('operadora_cartao', '')
+        maquina_cartao_id = request.POST.get('maquina_cartao', '')
+        aplicar_taxa = request.POST.get('aplicar_taxa') == 'on'
         
         if not forma_pagamento:
             messages.error(request, 'Selecione uma forma de pagamento!')
+            maquinas = MaquinaCartao.objects.filter(ativo=True)
             return render(request, 'core/finalizar_venda.html', {
                 'nota': nota,
-                'itens': itens
+                'itens': itens,
+                'maquinas': maquinas
             })
         
         try:
             desconto_percentual = Decimal(desconto_percentual)
             desconto_valor = Decimal(desconto_valor)
+            parcelas = int(parcelas)
         except (ValueError, TypeError):
             desconto_percentual = Decimal(0)
             desconto_valor = Decimal(0)
+            parcelas = 1
+        
+        if parcelas < 1:
+            parcelas = 1
         
         if desconto_percentual > 0:
             desconto_final = (nota.total * desconto_percentual) / 100
@@ -978,15 +1010,38 @@ def finalizar_venda(request, nota_id):
         
         if desconto_final > nota.total:
             messages.error(request, 'Desconto não pode ser maior que o total da venda!')
+            maquinas = MaquinaCartao.objects.filter(ativo=True)
             return render(request, 'core/finalizar_venda.html', {
                 'nota': nota,
-                'itens': itens
+                'itens': itens,
+                'maquinas': maquinas
             })
         
+        total_base = nota.total - desconto_final
+
+        taxa_maquina = Decimal(0)
+        if maquina_cartao_id and forma_pagamento == 'cartao_credito':
+            try:
+                maquina = MaquinaCartao.objects.get(pk=maquina_cartao_id)
+                taxa_maquina = maquina.get_taxa_credito_parcela(parcelas)
+            except (MaquinaCartao.DoesNotExist, ValueError):
+                taxa_maquina = Decimal(0)
+
+        taxa_aplicada = (aplicar_taxa and taxa_maquina > 0 and forma_pagamento == 'cartao_credito')
+        acrescimo_calculado = (total_base * taxa_maquina) / 100 if taxa_aplicada else Decimal(0)
+        total_final = total_base + acrescimo_calculado
+
         nota.desconto = desconto_final
-        nota.total_com_desconto = nota.total - desconto_final
+        nota.total_com_desconto = total_base
+        nota.acrescimo = acrescimo_calculado
+        nota.total_com_acrescimo = total_final
+        nota.taxa_operadora = taxa_maquina if taxa_aplicada else Decimal(0)
+        nota.parcelas = parcelas
+        nota.operadora_cartao = operadora_cartao
         nota.forma_pagamento = forma_pagamento
         nota.status = 'finalizada'
+        if maquina_cartao_id:
+            nota.maquina_cartao_id = maquina_cartao_id
         nota.save()
         
         for item in itens:
@@ -1013,27 +1068,37 @@ def finalizar_venda(request, nota_id):
         
         Movimentacao.objects.create(
             tipo='E',
-            valor=nota.total_com_desconto,
-            descricao=f"Venda #{nota.id} para {nota.cliente} - {forma_pagamento}",
+            valor=total_base,
+            descricao=f"Venda #{nota.id} para {nota.cliente} - {nota.get_forma_pagamento_display()}",
             data=datetime.now().date(),
-            usuario=usuario_referencia
+            usuario=usuario_referencia,
+            forma_pagamento=forma_pagamento
         )
+
+        desc_pagamento = nota.get_forma_pagamento_display()
+        if forma_pagamento == 'cartao_credito' and parcelas > 1:
+            desc_pagamento += f" ({parcelas}x R$ {(total_final / parcelas).quantize(Decimal('0.01'))})"
+        if acrescimo_calculado > 0:
+            desc_pagamento += f" [Taxa: {taxa_maquina}%]"
 
         LogSistema.objects.create(
             usuario=request.user,
             acao='U',
             modulo='Vendas',
-            descricao=f"Finalizou a venda #{nota.id} para '{nota.cliente}'. Forma de Pgto: {forma_pagamento}. Total Líquido: R$ {nota.total_com_desconto}"
+            descricao=f"Finalizou a venda #{nota.id} para '{nota.cliente}'. Forma de Pgto: {desc_pagamento}. Total Líquido: R$ {total_final}"
         )
         
         messages.success(request, 'Venda finalizada com sucesso!')
         return redirect('dashboard')   
+    maquinas = MaquinaCartao.objects.filter(ativo=True)
     return render(request, 'core/finalizar_venda.html', {
         'nota': nota,
-        'itens': itens
+        'itens': itens,
+        'maquinas': maquinas
     })
 
 @login_required
+@colaborador_tem_permissao('vendas', 'editar')
 def cancelar_venda(request, nota_id):
     nota = get_object_or_404(NotaVenda, pk=nota_id, usuario=request.user)
     
@@ -1131,32 +1196,210 @@ def imprimir_recibo_venda(request, nota_id):
     
     return render(request, 'core/recibo_impressao.html', context)
 
+
+def _enviar_email_ativacao(request, user):
+    token_obj = TokenVerificacao.gerar_token(user, 'ativacao', horas_validade=24)
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    link = f"{request.scheme}://{request.get_host()}/contas/ativar/{uid}/{token_obj.token}/"
+    html = render_to_string('registration/email_ativacao.html', {
+        'user': user, 'link': link,
+    })
+    send_mail(
+        subject='Ative sua conta - Sistema Fluxo de Caixa',
+        message=f'Clique no link para ativar sua conta: {link}',
+        from_email=None,
+        recipient_list=[user.email],
+        html_message=html,
+        fail_silently=False,
+    )
+
+
+def _enviar_email_reset_senha(request, user):
+    token_obj = TokenVerificacao.gerar_token(user, 'reset_senha', horas_validade=24)
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    link = f"{request.scheme}://{request.get_host()}/contas/redefinir/{uid}/{token_obj.token}/"
+    html = render_to_string('registration/email_reset_senha.html', {
+        'user': user, 'link': link,
+    })
+    send_mail(
+        subject='Redefina sua senha - Sistema Fluxo de Caixa',
+        message=f'Clique no link para redefinir sua senha: {link}',
+        from_email=None,
+        recipient_list=[user.email],
+        html_message=html,
+        fail_silently=False,
+    )
+
+
 def register(request):
     if request.method == 'POST':
         form = UsuarioForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            login(request, user)
+            user = form.save(commit=False)
+            user.is_active = False
+            user.save()
+
+            Perfil.objects.get_or_create(usuario=user, defaults={'Nome': user.get_full_name() or user.username})
+
+            try:
+                _enviar_email_ativacao(request, user)
+                messages.success(request, 'Cadastro realizado! Verifique seu e-mail para ativar sua conta.')
+            except Exception:
+                messages.warning(request, 'Cadastro realizado, mas não foi possível enviar o e-mail de ativação. Solicite o reenvio.')
 
             LogSistema.objects.create(
                 usuario=user,
                 acao='C',
                 modulo='Autenticação',
-                descricao=f"Novo usuário cadastrado e logado no sistema: {user.username}"
+                descricao=f"Novo usuário cadastrado (pendente ativação): {user.username}"
             )
-
-            messages.success(request, 'Cadastro realizado com sucesso!')
-            return redirect('dashboard')
+            return redirect('email_verificado')
     else:
         form = UsuarioForm()
     return render(request, 'registration/register.html', {'form': form})
+
+
+def _decodificar_uid(uid_b64):
+    try:
+        return force_str(urlsafe_base64_decode(uid_b64))
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def ativar_conta(request, uidb64, token):
+    uid = _decodificar_uid(uidb64)
+    user = None
+    if uid:
+        try:
+            user = User.objects.get(pk=uid)
+        except (User.DoesNotExist, ValueError):
+            pass
+
+    if user and not user.is_active:
+        try:
+            token_obj = TokenVerificacao.objects.get(usuario=user, token=token, tipo='ativacao')
+            if token_obj.esta_valido():
+                user.is_active = True
+                user.save()
+                token_obj.usado = True
+                token_obj.save()
+                perfil, _ = Perfil.objects.get_or_create(usuario=user, defaults={'Nome': user.get_full_name() or user.username})
+                perfil.email_verificado = True
+                perfil.save()
+                messages.success(request, 'Conta ativada com sucesso! Faça login.')
+                return redirect('login')
+            else:
+                messages.error(request, 'Link expirado. Solicite um novo link de ativação.')
+                return redirect('reenviar_ativacao')
+        except TokenVerificacao.DoesNotExist:
+            pass
+
+    messages.error(request, 'Link de ativação inválido.')
+    return redirect('login')
+
+
+def reenviar_ativacao(request):
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip()
+        if email:
+            try:
+                user = User.objects.get(email=email, is_active=False)
+                _enviar_email_ativacao(request, user)
+            except User.DoesNotExist:
+                pass
+        messages.success(request, 'Se o e-mail estiver cadastrado e pendente de ativação, você receberá um link.')
+        return redirect('login')
+    return render(request, 'registration/reenviar_ativacao.html')
+
+
+@login_required
+def verificar_email(request):
+    user = request.user
+    perfil = getattr(user, 'perfil', None)
+
+    if perfil and perfil.email_verificado:
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        if user.email:
+            try:
+                _enviar_email_ativacao(request, user)
+                messages.success(request, f'E-mail de verificação enviado para {user.email}.')
+            except Exception:
+                messages.error(request, 'Erro ao enviar e-mail. Tente novamente.')
+        else:
+            email_informado = request.POST.get('email', '').strip()
+            if email_informado:
+                user.email = email_informado
+                user.save()
+                try:
+                    _enviar_email_ativacao(request, user)
+                    messages.success(request, f'E-mail de verificação enviado para {email_informado}.')
+                except Exception:
+                    messages.error(request, 'Erro ao enviar e-mail. Tente novamente.')
+            else:
+                messages.error(request, 'Informe um e-mail válido.')
+
+    return render(request, 'registration/verificar_email.html', {'user': user})
+
+
+def solicitar_reset_senha(request):
+    if request.method == 'POST':
+        form = SolicitarResetSenhaForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data['email']
+            try:
+                user = User.objects.get(email=email, is_active=True)
+                _enviar_email_reset_senha(request, user)
+            except User.DoesNotExist:
+                pass
+            messages.success(request, 'Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha.')
+            return redirect('login')
+    else:
+        form = SolicitarResetSenhaForm()
+    return render(request, 'registration/password_reset_form.html', {'form': form})
+
+
+def reset_senha_confirmar(request, uidb64, token):
+    uid = _decodificar_uid(uidb64)
+    user = None
+    if uid:
+        try:
+            user = User.objects.get(pk=uid)
+        except (User.DoesNotExist, ValueError):
+            pass
+
+    token_obj = None
+    if user:
+        try:
+            token_obj = TokenVerificacao.objects.get(usuario=user, token=token, tipo='reset_senha')
+        except TokenVerificacao.DoesNotExist:
+            pass
+
+    if not user or not token_obj or not token_obj.esta_valido():
+        messages.error(request, 'Link de redefinição inválido ou expirado.')
+        return redirect('solicitar_reset_senha')
+
+    if request.method == 'POST':
+        form = ResetSenhaForm(request.POST)
+        if form.is_valid():
+            user.set_password(form.cleaned_data['nova_senha'])
+            user.save()
+            token_obj.usado = True
+            token_obj.save()
+            messages.success(request, 'Senha redefinida com sucesso! Faça login.')
+            return redirect('login')
+    else:
+        form = ResetSenhaForm()
+
+    return render(request, 'registration/password_reset_confirm.html', {'form': form})
 
 
 @login_required
 def change_password(request):
     usuario_referencia = get_usuario_referencia(request)
     if request.method == 'POST':
-        form = PasswordChangeForm(usuario_referencia, request.POST)
+        form = CustomPasswordChangeForm(usuario_referencia, request.POST)
         if form.is_valid():
             user = form.save()
             update_session_auth_hash(request, user)
@@ -1175,9 +1418,9 @@ def change_password(request):
                 for error in errors:
                     messages.error(request, f"Erro no campo '{field}': {error}")
     else:
-        form = PasswordChangeForm(usuario_referencia)
-    
-    return render(request, 'registration/change_password.html', {
+        form = CustomPasswordChangeForm(usuario_referencia)
+
+    return render(request, 'registration/password_change_form.html', {
         'form': form,
         'title': 'Alterar Senha'
     })
@@ -1273,6 +1516,7 @@ def user_logout(request):
 
 
 @login_required
+@colaborador_tem_permissao('vendas', 'ver')
 def lista_todas_vendas(request):
     from .utils import get_usuario_referencia
     from django.contrib.auth.models import User
@@ -1443,6 +1687,7 @@ def imprimir_lista_vendas(request):
 # =============================================================================
 
 @login_required
+@colaborador_tem_permissao('variacao', 'ver')
 def tipo_variacao_list(request):
     usuario_referencia = get_usuario_referencia(request)
     tipos = TipoVariacao.objects.filter(usuario=usuario_referencia).annotate(
@@ -1452,6 +1697,7 @@ def tipo_variacao_list(request):
 
 
 @login_required
+@colaborador_tem_permissao('variacao', 'editar')
 def tipo_variacao_create(request):
     usuario_referencia = get_usuario_referencia(request)
     if request.method == 'POST':
@@ -1474,6 +1720,7 @@ def tipo_variacao_create(request):
 
 
 @login_required
+@colaborador_tem_permissao('variacao', 'editar')
 def tipo_variacao_edit(request, pk):
     usuario_referencia = get_usuario_referencia(request)
     tipo = get_object_or_404(TipoVariacao, pk=pk, usuario=usuario_referencia)
@@ -1489,6 +1736,7 @@ def tipo_variacao_edit(request, pk):
 
 
 @login_required
+@colaborador_tem_permissao('variacao', 'excluir')
 @require_POST
 def tipo_variacao_delete(request, pk):
     usuario_referencia = get_usuario_referencia(request)
@@ -1855,6 +2103,7 @@ def gerar_grade(request, produto_pk):
 # =============================================================================
 
 @login_required
+@colaborador_tem_permissao('estoque', 'editar')
 def corrigir_estoque(request, id):
     usuario_referencia = get_usuario_referencia(request)
     produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
@@ -2452,3 +2701,119 @@ def pdf_orcamento(request, orcamento_id):
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="orcamento_{orcamento.id:06d}.pdf"'
     return response
+
+
+@login_required
+@colaborador_tem_permissao('maquina_cartao', 'ver')
+def lista_maquinas_cartao(request):
+    maquinas = MaquinaCartao.objects.all()
+    return render(request, 'core/maquina_cartao_lista.html', {'maquinas': maquinas})
+
+
+def _maquina_form_context(form):
+    taxa_parcelas = []
+    sem_juros_set = set()
+    cleaned = form.cleaned_data if form.is_bound else {}
+    raw = cleaned.get('parcelas_sem_juros', '')
+    if raw:
+        sem_juros_set = {int(x.strip()) for x in raw.split(',') if x.strip().isdigit()}
+    elif form.instance and form.instance.pk:
+        sem_juros_set = set(form.instance.parcelas_sem_juros_list())
+
+    sj_checks = []
+    for n in range(1, 13):
+        checked = 'checked' if n in sem_juros_set else ''
+        sj_checks.append({
+            'parcela': n,
+            'id': f'id_parcelas_sem_juros_{n}',
+            'widget': f'<input type="checkbox" class="form-check-input parcela-sj" id="id_parcelas_sem_juros_{n}" name="parcelas_sem_juros_{n}" {checked}>'
+        })
+        taxa_parcelas.append({
+            'parcela': n,
+            'field': form[f'taxa_{n}x']
+        })
+
+    return {'parcelas_sem_juros_checks': sj_checks, 'taxa_parcelas': taxa_parcelas}
+
+
+@login_required
+@colaborador_tem_permissao('maquina_cartao', 'editar')
+def adicionar_maquina_cartao(request):
+    if request.method == 'POST':
+        form = MaquinaCartaoForm(request.POST)
+        if form.is_valid():
+            maquina = form.save()
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='C',
+                modulo='Vendas',
+                descricao=f"Criou a máquina de cartão '{maquina.nome}'"
+            )
+
+            messages.success(request, f'Máquina "{maquina.nome}" cadastrada com sucesso!')
+            return redirect('lista_maquinas_cartao')
+    else:
+        form = MaquinaCartaoForm()
+    ctx = {'form': form, 'titulo': 'Nova Máquina de Cartão'}
+    ctx.update(_maquina_form_context(form))
+    return render(request, 'core/maquina_cartao_form.html', ctx)
+
+
+@login_required
+@colaborador_tem_permissao('maquina_cartao', 'editar')
+def editar_maquina_cartao(request, pk):
+    maquina = get_object_or_404(MaquinaCartao, pk=pk)
+    if request.method == 'POST':
+        form = MaquinaCartaoForm(request.POST, instance=maquina)
+        if form.is_valid():
+            form.save()
+
+            LogSistema.objects.create(
+                usuario=request.user,
+                acao='U',
+                modulo='Vendas',
+                descricao=f"Editou a máquina de cartão '{maquina.nome}'"
+            )
+
+            messages.success(request, f'Máquina "{maquina.nome}" atualizada!')
+            return redirect('lista_maquinas_cartao')
+    else:
+        form = MaquinaCartaoForm(instance=maquina)
+    ctx = {'form': form, 'titulo': f'Editar: {maquina.nome}'}
+    ctx.update(_maquina_form_context(form))
+    return render(request, 'core/maquina_cartao_form.html', ctx)
+
+
+@login_required
+@colaborador_tem_permissao('maquina_cartao', 'excluir')
+@require_POST
+def excluir_maquina_cartao(request, pk):
+    maquina = get_object_or_404(MaquinaCartao, pk=pk)
+    nome = maquina.nome
+    maquina.delete()
+
+    LogSistema.objects.create(
+        usuario=request.user,
+        acao='D',
+        modulo='Vendas',
+        descricao=f"Excluiu a máquina de cartão '{nome}'"
+    )
+
+    messages.success(request, f'Máquina "{nome}" excluída!')
+    return redirect('lista_maquinas_cartao')
+
+
+@login_required
+def api_maquina_taxa(request, pk):
+    from django.http import JsonResponse
+    maquina = get_object_or_404(MaquinaCartao, pk=pk)
+    forma = request.GET.get('forma', '')
+    parcela = int(request.GET.get('parcela', '1'))
+    taxa = maquina.get_taxa_por_forma(forma, parcela)
+    sem_juros = maquina.is_parcela_sem_juros(parcela) if forma == 'cartao_credito' else False
+    return JsonResponse({
+        'taxa': str(taxa),
+        'sem_juros': sem_juros,
+        'parcelas_sem_juros': maquina.parcelas_sem_juros,
+    })
