@@ -333,6 +333,9 @@ class ItemOrcamentoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.usuario:
             self.fields['produto'].queryset = Produto.objects.filter(usuario=self.usuario)
+            self.fields['variacao'].queryset = ProdutoVariacao.objects.filter(
+                produto__usuario=self.usuario, ativo=True
+            )
 
     def clean(self):
         cleaned_data = super().clean()
@@ -348,10 +351,10 @@ class ItemOrcamentoForm(forms.ModelForm):
                         f'Disponível: {variacao.quantidade}'
                     )
             else:
-                if produto.quantidade < quantidade:
+                if produto.quantidade_total < quantidade:
                     raise forms.ValidationError(
                         f'Estoque insuficiente para {produto.nome}. '
-                        f'Disponível: {produto.quantidade}'
+                        f'Disponível: {produto.quantidade_total}'
                     )
         return cleaned_data
 

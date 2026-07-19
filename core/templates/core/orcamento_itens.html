@@ -3,7 +3,8 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-8">
+    <!-- Expandido para col-md-12 ocupando toda a largura da tela -->
+    <div class="col-md-12">
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
                 <div class="d-flex justify-content-between align-items-center">
@@ -25,7 +26,7 @@
                         <div class="col-md-3">
                             <label for="validade" class="form-label">Validade</label>
                             <input type="date" class="form-control" id="validade" name="validade"
-                                   value="{{ orcamento.validade|date:'Y-m:d'|default:'' }}">
+                                   value="{{ orcamento.validade|date:'Y-m-d'|default:'' }}">
                         </div>
                         <div class="col-md-3 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">
@@ -71,7 +72,6 @@
                             <select class="form-select" id="variacao" name="variacao" disabled>
                                 <option value="">Sem variação</option>
                             </select>
-                            <input type="hidden" id="variacao_pk" name="variacao" value="">
                         </div>
                         <div class="col-md-1">
                             <label for="quantidade" class="form-label">Qtd</label>
@@ -120,8 +120,8 @@
                                 <td>R$ {{ item.subtotal|floatformat:2 }}</td>
                                 <td>
                                     <a href="{% url 'remover_item_orcamento' item.id %}" 
-                                        class="btn btn-danger btn-sm"
-                                        onclick="return confirm('Remover este item?')">
+                                       class="btn btn-danger btn-sm"
+                                       onclick="return confirm('Remover este item?')">
                                             <i class="fas fa-trash"></i>
                                     </a>
                                 </td>
@@ -140,7 +140,7 @@
                                 <th>R$ {{ orcamento.total|intcomma }}</th>
                                 <th></th>
                             </tr>
-                        </tfoot>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -159,60 +159,12 @@
             </div>
         </div>
     </div>
-
-    <!-- Painel lateral -->
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-header bg-info text-white">
-                <h5>Informações</h5>
-            </div>
-            <div class="card-body">
-                <dl class="row">
-                    <dt class="col-sm-5">Número:</dt>
-                    <dd class="col-sm-7">#{{ orcamento.id|stringformat:"06d" }}</dd>
-                    <dt class="col-sm-5">Data:</dt>
-                    <dd class="col-sm-7">{{ orcamento.data|date:"d/m/Y H:i" }}</dd>
-                    <dt class="col-sm-5">Status:</dt>
-                    <dd class="col-sm-7">
-                        <span class="badge bg-secondary">Rascunho</span>
-                    </dd>
-                </dl>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <h5>Produtos Disponíveis</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
-                    {% for produto in produtos %}
-                    <div class="list-group-item list-group-item-action">
-                        <div class="d-flex justify-content-between">
-                            <strong>{{ produto.nome }}</strong>
-                            <span>R$ {{ produto.preco|intcomma }}</span>
-                        </div>
-                        <small class="text-muted">
-                            {% if produto.tem_variacao %}
-                                <span class="badge bg-info">GRADE</span>
-                                {{ produto.quantidade_total }} em estoque
-                            {% else %}
-                                Estoque: {{ produto.quantidade }}
-                            {% endif %}
-                        </small>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const produtoSelect = document.getElementById('produto');
     const variacaoSelect = document.getElementById('variacao');
-    const variacaoPkInput = document.getElementById('variacao_pk');
     const precoInput = document.getElementById('preco');
     const quantidadeInput = document.getElementById('quantidade');
 
@@ -259,7 +211,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             variacaoSelect.disabled = true;
             variacaoSelect.innerHTML = '<option value="">Sem variação</option>';
-            variacaoPkInput.value = '';
             precoInput.value = selectedOption.getAttribute('data-preco') || '';
             
             const estoque = parseInt(selectedOption.getAttribute('data-estoque')) || 999;
@@ -274,7 +225,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedOption = this.options[this.selectedIndex];
         if (selectedOption.value) {
             precoInput.value = selectedOption.getAttribute('data-preco');
-            variacaoPkInput.value = selectedOption.value;
             
             const estoque = parseInt(selectedOption.getAttribute('data-estoque'));
             quantidadeInput.max = estoque;
@@ -283,7 +233,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } else {
             precoInput.value = '';
-            variacaoPkInput.value = '';
         }
     });
 });

@@ -698,6 +698,13 @@ def adicionar_produto(request):
             if produto.tem_variacao:
                 # Processar variacoes do form unico
                 _processar_variacoes(request, produto, usuario_referencia)
+                tipos_ids_raw = request.POST.get('tipos_variacao_ids', '[]')
+                try:
+                    tipos_ids = json.loads(tipos_ids_raw)
+                except (json.JSONDecodeError, TypeError):
+                    tipos_ids = []
+                tipos_objs = TipoVariacao.objects.filter(id__in=tipos_ids, usuario=usuario_referencia)
+                produto.tipos_variacao.set(tipos_objs)
             else:
                 MovimentoEstoque.objects.create(
                     produto=produto,
@@ -751,6 +758,8 @@ def excluir_produto(request, id):
 @login_required
 @colaborador_tem_permissao('estoque', 'editar')
 def editar_produto(request, id):
+    import json
+    from .models import MovimentoEstoque
     usuario_referencia = get_usuario_referencia(request)
     produto = get_object_or_404(Produto, id=id, usuario=usuario_referencia)
     
@@ -758,6 +767,16 @@ def editar_produto(request, id):
         form = ProdutoForm(request.POST, instance=produto, usuario=usuario_referencia)
         if form.is_valid():
             form.save()
+
+            if produto.tem_variacao:
+                _processar_variacoes(request, produto, usuario_referencia)
+                tipos_ids_raw = request.POST.get('tipos_variacao_ids', '[]')
+                try:
+                    tipos_ids = json.loads(tipos_ids_raw)
+                except (json.JSONDecodeError, TypeError):
+                    tipos_ids = []
+                tipos_objs = TipoVariacao.objects.filter(id__in=tipos_ids, usuario=usuario_referencia)
+                produto.tipos_variacao.set(tipos_objs)
 
             LogSistema.objects.create(
                 usuario=request.user,
@@ -1833,6 +1852,8 @@ def produto_variacoes(request, produto_pk):
             return redirect('produto_variacoes', produto_pk=produto_pk)
 
     tipos = produto.tipos_variacao.all()
+    tipos_vinculados_ids = list(tipos.values_list('pk', flat=True))
+    todos_tipos = TipoVariacao.objects.filter(usuario=usuario_referencia).exclude(pk__in=tipos_vinculados_ids)
     valores_por_tipo = {}
     for tipo in tipos:
         valores_por_tipo[tipo.pk] = tipo.valores.all()
@@ -1842,6 +1863,7 @@ def produto_variacoes(request, produto_pk):
         'variacoes': variacoes,
         'form': form,
         'tipos': tipos,
+        'todos_tipos': todos_tipos,
         'valores_por_tipo': valores_por_tipo,
     })
 
@@ -1887,48 +1909,28 @@ def adicionar_tipo_rapido(request, produto_pk):
     produto = get_object_or_404(Produto, pk=produto_pk, usuario=usuario_referencia)
 
     if request.method == 'POST':
-        nome_tipo = request.POST.get('nome_tipo', '').strip()
-        nome_valor = request.POST.get('nome_valor', '').strip()
-
-        if not nome_tipo:
-            messages.error(request, 'Informe o nome do tipo de variação.')
+        tipo_pk = request.POST.get('tipo_pk', '').strip()
+        if not tipo_pk:
+            messages.error(request, 'Selecione um tipo de variação.')
             return redirect('produto_variacoes', produto_pk=produto_pk)
 
-        tipo, criado_tipo = TipoVariacao.objects.get_or_create(
-            usuario=usuario_referencia,
-            nome=nome_tipo,
-        )
+        try:
+            tipo = TipoVariacao.objects.get(pk=int(tipo_pk), usuario=usuario_referencia)
+        except (TipoVariacao.DoesNotExist, ValueError):
+            messages.error(request, 'Tipo de variação não encontrado.')
+            return redirect('produto_variacoes', produto_pk=produto_pk)
 
-        if criado_tipo:
+        if tipo in produto.tipos_variacao.all():
+            messages.info(request, f'Tipo "{tipo.nome}" já está vinculado ao produto.')
+        else:
             produto.tipos_variacao.add(tipo)
             LogSistema.objects.create(
                 usuario=request.user,
-                acao='C',
+                acao='U',
                 modulo='Produtos / Variações',
-                descricao=f"Criou tipo de variação '{nome_tipo}' e adicionou ao produto '{produto.nome}'"
+                descricao=f"Vinculou tipo de variação '{tipo.nome}' ao produto '{produto.nome}'"
             )
-            messages.success(request, f'Tipo "{nome_tipo}" criado e adicionado ao produto!')
-        else:
-            if tipo not in produto.tipos_variacao.all():
-                produto.tipos_variacao.add(tipo)
-                messages.info(request, f'Tipo "{nome_tipo}" já existia e foi adicionado ao produto.')
-            else:
-                messages.info(request, f'Tipo "{nome_tipo}" já está vinculado ao produto.')
-
-        if nome_valor:
-            valor, criado_valor = ValorVariacao.objects.get_or_create(
-                tipo=tipo,
-                valor=nome_valor,
-                defaults={'usuario': usuario_referencia}
-            )
-            if criado_valor:
-                LogSistema.objects.create(
-                    usuario=request.user,
-                    acao='C',
-                    modulo='Produtos / Variações',
-                    descricao=f"Criou valor '{nome_valor}' para o tipo '{nome_tipo}'"
-                )
-                messages.success(request, f'Valor "{nome_valor}" criado no tipo "{nome_tipo}"!')
+            messages.success(request, f'Tipo "{tipo.nome}" vinculado ao produto com sucesso!')
 
     return redirect('produto_variacoes', produto_pk=produto_pk)
 
@@ -1948,7 +1950,6 @@ def adicionar_valor_rapido(request, produto_pk, tipo_pk):
         valor, criado = ValorVariacao.objects.get_or_create(
             tipo=tipo,
             valor=valor_texto,
-            defaults={'usuario': usuario_referencia}
         )
 
         if criado:

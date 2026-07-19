@@ -28,23 +28,24 @@
                     </dd>
                 </dl>
 
-                <!-- Adicionar novo tipo rapidamente -->
+                <!-- Vincular tipo existente -->
                 <hr>
                 <form method="post" action="{% url 'adicionar_tipo_rapido' produto.pk %}" class="row g-2 align-items-end">
                     {% csrf_token %}
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold">Novo Tipo de Variação</label>
-                        <input type="text" class="form-control form-control-sm" name="nome_tipo"
-                               placeholder="Ex: Material, Tamanho, Sabor..." required>
+                    <div class="col-md-8">
+                        <label class="form-label small fw-bold">Vincular Tipo de Variação existente</label>
+                        <select class="form-select form-select-sm" name="tipo_pk" required>
+                            <option value="">Selecione um tipo...</option>
+                            {% for tipo in todos_tipos %}
+                            <option value="{{ tipo.pk }}">{{ tipo.nome }}</option>
+                            {% empty %}
+                            <option value="" disabled>Nenhum tipo disponível para vincular</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label small fw-bold">Primeiro Valor (opcional)</label>
-                        <input type="text" class="form-control form-control-sm" name="nome_valor"
-                               placeholder="Ex: Madeira, P, Chocolate...">
-                    </div>
-                    <div class="col-md-4">
-                        <button type="submit" class="btn btn-success btn-sm w-100">
-                            <i class="fas fa-plus me-1"></i>Adicionar Tipo
+                        <button type="submit" class="btn btn-success btn-sm w-100" {% if not todos_tipos %}disabled{% endif %}>
+                            <i class="fas fa-plus me-1"></i>Vincular Tipo
                         </button>
                     </div>
                 </form>
@@ -160,9 +161,9 @@
                     {% csrf_token %}
 
                     {% for tipo in tipos %}
-                    <div class="mb-3">
+                    <div class="mb-2" >
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <strong class="small">{{ tipo.nome }}</strong>
+                            <strong class="small"><font size="3">{{ tipo.nome }}</font></strong>
                             <div class="d-flex align-items-center gap-1">
                                 <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none toggle-tipo"
                                         data-tipo="{{ tipo.pk }}">
@@ -175,7 +176,7 @@
                             <div class="form-check">
                                 <input class="form-check-input valor-checkbox" type="checkbox"
                                        name="valores_tipo_{{ tipo.pk }}" value="{{ valor.pk }}"
-                                       id="gt_{{ tipo.pk }}_{{ valor.pk }}" checked>
+                                       id="gt_{{ tipo.pk }}_{{ valor.pk }}" >
                                 <label class="form-check-label small" for="gt_{{ tipo.pk }}_{{ valor.pk }}">
                                     {{ valor.valor }}
                                 </label>
@@ -184,18 +185,7 @@
                             <small class="text-muted">Nenhum valor cadastrado para este tipo.</small>
                             {% endfor %}
                         </div>
-                        <div class="input-group input-group-sm mt-1">
-                            <input type="text" class="form-control form-control-sm"
-                                   placeholder="Novo valor (ex: Rosa)"
-                                   id="inputValor_{{ tipo.pk }}">
-                            <button type="button" class="btn btn-outline-success btn-sm btn-adicionar-valor"
-                                    title="Adicionar valor"
-                                    data-tipo-pk="{{ tipo.pk }}"
-                                    data-url="{% url 'adicionar_valor_rapido' produto.pk tipo.pk %}"
-                                    data-csrf="{{ csrf_token }}">
-                                <i class="fas fa-plus"></i>
-                            </button>
-                        </div>
+                        
                     </div>
                     {% endfor %}
 

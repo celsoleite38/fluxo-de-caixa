@@ -3,12 +3,16 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-8">
+    <!-- Ajustado para col-12 para que todo o painel ocupe a largura total da página -->
+    <div class="col-12">
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h4>Nova Venda</h4>
-                    <span class="badge bg-light text-dark fs-6">Total: R$ {{ nota.total|intcomma }}</span>
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h4 class="mb-0">Nova Venda</h4> 
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="small font-monospace">Número: #{{ nota.id|stringformat:"06d" }}</span>
+                        <span class="badge bg-light text-dark fs-6">Total: R$ {{ nota.total|intcomma }}</span>
+                    </div>
                 </div>
             </div>
             
@@ -17,12 +21,12 @@
                 <form method="post" class="mb-4">
                     {% csrf_token %}
                     <div class="row g-3">
-                        <div class="col-md-8">
+                        <div class="col-md-10">
                             <label for="cliente" class="form-label">Cliente</label>
                             <input type="text" class="form-control" id="cliente" name="cliente" 
                                    value="{{ nota.cliente }}" required>
                         </div>
-                        <div class="col-md-4 d-flex align-items-end">
+                        <div class="col-md-2 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary w-100">
                                 <i class="fas fa-save me-2"></i>Salvar Cliente
                             </button>
@@ -45,9 +49,10 @@
                     </div>
                     {% endif %}
 
-                    <div class="row g-3">
+                    <!-- Grid redimensionada para aproveitar a largura total da página sem distorcer os campos -->
+                    <div class="row g-2 align-items-end">
                         <div class="col-md-5">
-                            <label for="produto" class="form-label">Produto</label>
+                            <label for="produto" class="form-label mb-1">Produto</label>
                             <select class="form-select" id="produto" name="produto" required>
                                 <option value="">Selecione um produto</option>
                                 {% for produto in produtos %}
@@ -61,31 +66,35 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        
                         <div class="col-md-3">
-                            <label for="variacao" class="form-label">Variação</label>
+                            <label for="variacao" class="form-label mb-1">Variação</label>
                             <select class="form-select" id="variacao" disabled>
                                 <option value="">Sem variação</option>
                             </select>
                             <input type="hidden" id="variacao_pk" name="variacao" value="">
                         </div>
+
                         <div class="col-md-1">
-                            <label for="quantidade" class="form-label">Qtd</label>
-                            <input type="number" class="form-control" id="quantidade" 
+                            <label for="quantidade" class="form-label mb-1 text-truncate" title="Quantidade">Qtd</label>
+                            <input type="number" class="form-control text-center" id="quantidade" 
                                    name="quantidade" min="1" value="1" required>
                         </div>
+
                         <div class="col-md-1">
-                            <label for="preco" class="form-label">Preço</label>
-                            <input type="text" class="form-control" id="preco" readonly>
+                            <label for="preco" class="form-label mb-1">Preço</label>
+                            <input type="text" class="form-control text-end" id="preco" readonly placeholder="R$ 0,00">
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
+
+                        <div class="col-md-2">
                             <button type="submit" class="btn btn-success w-100">
-                                <i class="fas fa-plus me-2"></i>Adicionar
+                                <i class="fas fa-plus me-1"></i>Adicionar
                             </button>
                         </div>
                     </div>
                 </form>
 
-                <!-- Lista de Itens Adicionados -->
+                <!-- Listagem de Itens adicionados -->
                 <div class="table-responsive mt-4">
                     <table class="table table-hover">
                         <thead class="table-light">
@@ -140,72 +149,22 @@
                 </div>
             </div>
 
+            <!-- Ações finais do rodapé -->
             <div class="card-footer bg-light">
-                <div class="d-flex justify-content-between">
+                <div class="d-flex justify-content-between flex-wrap gap-2">
                     <a href="{% url 'cancelar_venda' nota.id %}" class="btn btn-danger"
                         onclick="return confirm('Tem certeza que deseja cancelar esta venda?')">
                         <i class="fas fa-times me-2"></i>Cancelar
                     </a>
-                    <a href="{% url 'finalizar_venda' nota.id %}" 
-                        class="btn btn-success {% if not itens %}disabled{% endif %}">
-                            <i class="fas fa-check me-2"></i>Finalizar Venda
-                    </a>
-                    <a href="{% url 'imprimir_recibo_venda' nota.id %}" class="btn btn-info">
-                        <i class="fas fa-receipt"></i> Visualizar Recibo
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Painel de Informações -->
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-header bg-info text-white">
-                <h5>Informações da Venda</h5>
-            </div>
-            <div class="card-body">
-                <dl class="row">
-                    <dt class="col-sm-5">Número:</dt>
-                    <dd class="col-sm-7">#{{ nota.id|stringformat:"06d" }}</dd>
-
-                    <dt class="col-sm-5">Data:</dt>
-                    <dd class="col-sm-7">{{ nota.data|date:"d/m/Y H:i" }}</dd>
-
-                    <dt class="col-sm-5">Status:</dt>
-                    <dd class="col-sm-7">
-                        <span class="badge bg-warning text-dark">Em andamento</span>
-                    </dd>
-                </dl>
-            </div>
-        </div>
-
-        <!-- Painel de Produtos -->
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5>Produtos Disponíveis</h5>
-                    <span class="badge bg-light text-dark">{{ produtos|length }}</span>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
-                    {% for produto in produtos %}
-                    <div class="list-group-item list-group-item-action">
-                        <div class="d-flex justify-content-between">
-                            <strong>{{ produto.nome }}</strong>
-                            <span>R$ {{ produto.preco|intcomma }}</span>
-                        </div>
-                        <small class="text-muted">
-                            {% if produto.tem_variacao %}
-                                <span class="badge bg-info">GRADE</span>
-                                {{ produto.quantidade_total }} em estoque
-                            {% else %}
-                                Estoque: {{ produto.quantidade }}
-                            {% endif %}
-                        </small>
+                    <div>
+                        <a href="{% url 'imprimir_recibo_venda' nota.id %}" class="btn btn-info me-2">
+                            <i class="fas fa-receipt me-1"></i> Visualizar Recibo
+                        </a>
+                        <a href="{% url 'finalizar_venda' nota.id %}" 
+                            class="btn btn-success {% if not itens %}disabled{% endif %}">
+                                <i class="fas fa-check me-2"></i> Ir para Pagamento
+                        </a>
                     </div>
-                    {% endfor %}
                 </div>
             </div>
         </div>
